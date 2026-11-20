@@ -11,9 +11,10 @@ to its title.
 1. **Phase 21: a faster 3D view** (the user, 2026-11-20): measure the 3D view's first and later loads, then make the
    changes the measurements back. Not yet planned with the user; the candidates and open decisions are in the
    "Phase 21" section.
-2. **Phase 22: a blocky 1 m surface** (the user, 2026-11-20, "let's discuss further"): buildings and trees drawn as
-   1 m blocks with the imagery on their tops, in place of today's smoothed mounds. To discuss: the options, what each
-   costs and what it breaks are in the "Phase 22" section.
+2. **Phase 22: a sharper 3D ground** (the user, 2026-11-20): buildings and trees drawn closer to their real outlines
+   and easier to read, without slowing the 3D view. Started as "1 m blocks like Minecraft"; after the user's
+   screenshot (a building's lidar block larger than its roof in the imagery, grass draped on its top edges) the aim is
+   definition by sensible, reliable means. To discuss: the "Phase 22" section.
 
 Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
 commits, then make it public.
@@ -946,7 +947,7 @@ and after.
 **Open decisions** (asked once the baseline is in): which loads matter most (the first entry into 3D, a pan in 3D,
 switching back and forth); whether the ground may load in 2D before it is shown; a target, if the user has one.
 
-## Phase 22: a blocky 1 m surface (requested 2026-11-20, to discuss)
+## Phase 22: a sharper 3D ground (requested 2026-11-20, to discuss)
 
 The request (`new.md`, 2026-11-20): "Would the buildings, trees and such look less stretched and blurred if instead
 of being drawn as round stretched image splotches along the curved height, the image was drawn in 1m square block
@@ -980,12 +981,42 @@ through `map.unproject`), collisions (Phases 10 and 11), the pointer's height (P
   walls at the real outlines; trees and the ground stay on the terrain. Not blocks, but straight walls where
   they matter most; OSM's footprints are incomplete in places.
 
-**Proposed:** a short spike of A with before and after screenshots at the Illinois sample. Then decide with the user
-between stopping there, B and D, from the pictures.
+**The user's screenshot (2026-11-20)** shows a building whose lidar block is wider than its roof in the imagery,
+with grass and trees draped over the block's top edges, so the building looks like it sits on a hill. "I'm looking
+for effective sensible ways to reliably improve the definition/visibility of map terrain without killing performance
+either." Causes found since, in the code and PDAL's documentation:
+- **Every tall thing is widened by about 1.4 m on each side when the DSM is made.** `dsm_pipeline` (`lidar.py`)
+  writes the DSM with PDAL's `writers.gdal`, `output_type: max`, without a `radius`. PDAL's documentation
+  (pdal.io, `writers.gdal`, read 2026-11-20): every point within `radius` of a cell's centre contributes, and the
+  default radius is the resolution times the square root of two; `max` takes the highest of them. So a roof's
+  height spreads into every cell whose centre is within 1.41 m of a roof point.
+- **Widened again further from the camera:** zooms 15 to 17 are cut from the DSM with `Resampling.max`
+  (`make_tiles`), up to one more coarse pixel. Only the 3D view draws those zooms: collisions, the pointer's height
+  and the Pointer tool read zoom 18 (`pointer_height.js`, `LIDAR_ZOOM`).
+- **Walls are ramps a mesh cell wide** (above), and the imagery is stretched down them.
+- **The imagery itself may be off:** satellite roofs lean away from their footprints, more the taller the building,
+  and a basemap can be shifted. Not measured.
 
-**To discuss:** the look wanted (blocks everywhere, or straight walls on buildings only); walls with the imagery
-repeated, or a flat shade; whether drawing and editing in 3D must work on the blocks (Phase 9 says it does today);
-how much load time the look may cost (Phase 21).
+The widening also works as a safety margin: collisions read the same zoom-18 tiles, so a tighter surface makes a
+route that passes close to a building show "stays above" where it now shows a collision.
+
+**Proposed steps, cheapest and surest first (none adds work while the map is drawn):**
+1. **Measure the misalignment** at a few buildings of different heights (the Illinois sample and the place in the
+   screenshot, if the user gives it): the lidar's edges against OpenStreetMap's outlines and the imagery's roofs.
+   An offset the same for every building points to a shift (ours or the basemap's); one that grows with height,
+   in one direction, is the imagery's lean.
+2. **A tighter DSM:** `radius` set to the half-diagonal of a cell (each point counts in its own cell only; empty
+   cells still filled by `window_size`), and zooms 15 to 17 cut without `max`. Built units need building again (a
+   version in their saved state, so old units are remade once). Collisions keep a margin of their own, if the user
+   wants one, rather than the surface's widening.
+3. **Shading that shows the shape:** MapLibre 6.16.0's hillshade has `hillshade-method` (`multidirectional`,
+   `igor`, ...) and illumination settings; a stronger, multi-directional shade darkens walls and lights roofs
+   whatever the imagery says. And a "Relief" ground in the layers panel: the lidar shaded and coloured by height
+   (MapLibre's `color-relief` layer), no imagery, so nothing can be misaligned. The tiles are already loaded.
+4. **Blocks (option B), parked:** the most work, and the slowest to draw; reconsidered only if 1-3 fall short.
+
+**To decide:** whether collisions keep a margin (how many metres) once the surface is tight; whether "Relief" is
+wanted in the layers panel; the screenshot's place, for the measurement (not written in the repo).
 
 ## Lidar regions: Phases 23-25 (planned 2026-11-20, kept for later)
 
