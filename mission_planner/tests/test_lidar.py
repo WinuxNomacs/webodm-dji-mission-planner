@@ -292,6 +292,24 @@ class TestBuild(LidarTestCase):
         self.assertAlmostEqual(tile_heights(15, *east)[128, 0], GROUND, delta=0.5)
         self.assertAlmostEqual(tile_heights(15, *self.unit)[0, 128], AWS_HEIGHT, delta=0.5)  # north: still none
 
+    def test_a_built_unit_answers_a_version_of_its_tiles_that_changes_when_they_are_made_again(self):
+        self.assertEqual(lidar.states([self.unit])[0]["v"], 0)
+        self.build()
+        first = lidar.states([self.unit])[0]["v"]
+        self.assertGreater(first, 0)
+        self.assertEqual(lidar.states([self.unit])[0]["v"], first)
+        self.build((self.unit[0] + 1, self.unit[1]))                    # its tiles made again at that edge
+        self.assertGreater(lidar.states([self.unit])[0]["v"], first)
+
+    def test_a_unit_built_before_tiles_had_a_version_answers_0_and_one_that_does_not_read_too(self):
+        self.build()
+        path = os.path.join(lidar.unit_folder(self.unit), "tiles.json")
+        os.remove(path)
+        self.assertEqual(lidar.states([self.unit])[0]["v"], 0)
+        with open(path, "w") as f:
+            f.write("garbage")
+        self.assertEqual(lidar.states([self.unit])[0]["v"], 0)
+
     def test_a_unit_no_lidar_covers_is_none(self):
         far = unit_at(-100.0, 35.0)
         self.assertEqual(self.build(far)["state"], "none")

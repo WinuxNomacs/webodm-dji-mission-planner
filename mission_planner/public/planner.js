@@ -295,6 +295,7 @@
         onTilesChanged: function (tiles) {
             var dem = map.getSource("mp-dem");
             if (dem && lidarOn && dem.setTiles) dem.setTiles(tiles);
+            if (heightReader) heightReader.clear();     // the heights read from the tiles before are read again
             if (route3d) route3d.refresh();     // the route checked against the lidar's surface now
             if (relief && reliefOn && state.view3d) relief.refresh(lidarBounds());  // its colours from the lidar's heights
             measure.reread();                   // and the Pointer tool's dots read from it

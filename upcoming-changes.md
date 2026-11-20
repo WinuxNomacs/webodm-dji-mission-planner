@@ -8,10 +8,7 @@ to its title.
 
 **Up next**
 
-1. **The lidar tiles' cache** (found 2026-11-20): the lidar tiles' URL does not change when a unit is rebuilt, and the
-   browser and the page's reader keep them (an hour, `Cache-Control`; no version), so a tab open across a rebuild reads
-   the old surface. A version in the URL (the unit's build time) would fix it.
-2. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
+1. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
    where a processed task the user can see covers the route, the 3D view's ground is that task's DSM instead of the
    lidar, so the ground is as new as the last flight and at the task's detail. To plan with the user; the
    proposed design and open decisions are in the "Phase 23" section.
@@ -51,6 +48,12 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
 **Done**
+- **The lidar tiles' cache** (found 2026-11-20, `lidar-tile-version`): a tab open while a unit was built again, or its
+  tiles made again for a neighbour, read the old tiles for up to an hour (`Cache-Control`, an unversioned URL). Now
+  `make_tiles` writes `tiles.json` (when, in nanoseconds) once all the unit's tiles are written, `lidar.states` answers
+  it as each unit's `v` (0 for units made before), `lidar_surface.js` puts it in the tiles' URLs (`?v=`) and reloads
+  the terrain when it changes, and both editors clear the pointer's height reader then (`clear()`). Tests:
+  `test_lidar.py` (2), `lidar_surface.test.js`, `pointer_height.test.js`.
 - **Lidar terrain: 15 m along each leg** (2026-11-20, the user chose it, `lidar-leg-radius`): over a lidar terrain each
   waypoint is over the highest ground within 15 m of the legs to and from it (`terrain.flown_ground_heights`,
   `LIDAR_RADIUS`; the terrain known by its file name, `is_lidar`), in `wpml.dsm_of`, `linear.dsm_of`, `djifly` (its base

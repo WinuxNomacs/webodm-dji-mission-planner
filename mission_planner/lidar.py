@@ -223,12 +223,27 @@ def _needs_build(st, now):
 
 
 def states(units):
-    """[{"x", "y", "state", "message"}] for the units, "missing" for one never asked for"""
+    """[{"x", "y", "state", "message", "v"}] for the units, "missing" for one never asked for; v: the version of a built
+    unit's tiles (tiles_version), which the browser puts in their URLs"""
     out = []
     for unit in units:
         st = read_state(unit)
-        out.append({"x": unit[0], "y": unit[1], "state": st["state"] if st else "missing", "message": st.get("message", "") if st else ""})
+        state = st["state"] if st else "missing"
+        out.append({"x": unit[0], "y": unit[1], "state": state, "message": st.get("message", "") if st else "",
+                    "v": tiles_version(unit) if state == "done" else 0})
     return out
+
+
+def tiles_version(unit):
+    """When the unit's tiles were last made (nanoseconds; make_tiles writes it once they all are), 0 when unknown (made
+    before tiles had a version, or the file does not read): the tiles' URLs change with it, so that a browser that keeps
+    them an hour reads the new ones once a unit is built again or its tiles are made again for a neighbour"""
+    try:
+        with open(os.path.join(unit_folder(unit), "tiles.json")) as f:
+            made = json.load(f).get("made")
+        return made if isinstance(made, int) and not isinstance(made, bool) and made > 0 else 0
+    except (OSError, ValueError, AttributeError):
+        return 0
 
 
 def _claim(unit, now):
@@ -607,6 +622,7 @@ def make_tiles(unit):
                         reproject(aws, ground, src_transform=aws_transform, src_crs=crs, dst_transform=t, dst_crs=crs,
                                   resampling=Resampling.bilinear)
                         _write_tile(folder, z, tx, ty, _png(encode(ground * (1 - w) + lidar * w)))
+            _write_json(os.path.join(folder, "tiles.json"), {"made": time.time_ns()})
             _record_size(unit)
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)

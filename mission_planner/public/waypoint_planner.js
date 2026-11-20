@@ -699,6 +699,7 @@
         onTilesChanged: function (tiles) {
             var dem = map.getSource("mp-dem");
             if (dem && lidarOn && dem.setTiles) dem.setTiles(tiles);
+            if (heightReader) heightReader.clear();     // the heights read from the tiles before are read again
             showLabels();                       // the surface under the points is the lidar's now
             if (route3d) route3d.refresh();
             if (relief && reliefOn && state.view3d) relief.refresh(lidarBounds());  // its colours from the lidar's heights

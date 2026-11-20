@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The 3D view and the heights under the pointer show a lidar unit's new surface as soon as it is built again (or its
+  edges are remade for a neighbour), instead of the old one the browser kept for up to an hour.
 - AGL routes over the lidar terrain fly each waypoint over the highest point within 15 m of the legs to and from it,
   instead of within 50 m of the waypoint: a small route is no longer lifted whole over one building nearby, and a
   building in the middle of a long line, which the 50 m missed, is now flown over. In the KMZ, DJI Fly's missions and the
