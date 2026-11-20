@@ -718,6 +718,8 @@ def copied_settings(settings, source_model, model, route_type="area"):
     settings["lens_ir"] = "false"
     if not DRONES[model].realtime_follow and settings.get("surface_follow", "realtime") == "realtime":
         settings["surface_follow"] = "dsm"      # the model flies AGL over the terrain model only
+    if djifly.is_djifly(model) and settings.get("collection_mode") == "oblique":
+        settings["collection_mode"] = "ortho"   # DJI Fly takes ortho photos only (djifly.check)
     return settings
 
 
@@ -737,6 +739,8 @@ class RouteCopyView(APIView):
             check_route_type(source.route_type, model)
         except RequestError as e:
             raise ValidationError({"model": str(e)})
+        if djifly.is_djifly(model) and source.route_type == "waypoint" and (source.settings or {}).get("shape"):
+            raise ValidationError({"model": "DJI Fly missions cannot face a point of interest from this planner yet"})
         settings = copied_settings(source.settings, source.model, model, source.route_type)
         route = create_route(request.user, {"name": source.name + " (copy)", "route_type": source.route_type,
                                             "model": model, "settings": settings})

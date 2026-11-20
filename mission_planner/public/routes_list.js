@@ -13,13 +13,15 @@
     var MODEL_NAMES = {};
     Object.keys(Core.DRONES).forEach(function (model) { MODEL_NAMES[model] = Core.DRONES[model].name; });
 
-    // Whether the model is offered routes of the type (drones.json route_types: what its app's documents say it flies)
+    // Whether the model is offered routes of the type (drones.json route_types: what its app's documents say it flies).
+    // "poi": a POI route, a waypoint route facing its subject, which the DJI Fly writer cannot fly (djifly.check)
     function offersRouteType(model, routeType) {
         var drone = Core.DRONES[model];
+        if (routeType === "poi") return offersRouteType(model, "waypoint") && drone.app !== "djifly";
         return !!drone && (!drone.route_types || drone.route_types.indexOf(routeType) !== -1);
     }
     // The New Route menu's entries and the route type each makes
-    var NEW_ROUTE_TYPES = {"mp-new-area": "area", "mp-new-linear": "linear", "mp-new-waypoint": "waypoint", "mp-new-poi": "waypoint",
+    var NEW_ROUTE_TYPES = {"mp-new-area": "area", "mp-new-linear": "linear", "mp-new-waypoint": "waypoint", "mp-new-poi": "poi",
                            "mp-new-slope": "slope", "mp-new-geometric": "geometric"};
 
     // settings: the route's, to tell a POI route (a waypoint route with a shape) from a waypoint route
@@ -44,7 +46,9 @@
         else if (!visible) heightText = "This route takes thermal photos only: the copy keeps its height (" + Core.roundTo(height, 2) + " m). ";
         else heightText = "Height " + Core.roundTo(height, 2) + " m → " + Core.roundTo(Core.copiedHeight(height, route.model, model), 2) +
                           " m, to keep " + Core.roundTo(Core.gsdCm("visable", height, route.model), 2) + " cm/pixel on the wide camera. ";
-        return heightText + cameras + " Everything else (overlap, direction, speed and so on) is copied as it is.";
+        var ortho = route.route_type === "area" && s.collection_mode === "oblique" && Core.DRONES[model].app === "djifly"
+            ? " DJI Fly takes ortho photos only: the copy is an ortho collection." : "";
+        return heightText + cameras + ortho + " Everything else (overlap, direction, speed and so on) is copied as it is.";
     }
 
     var HEIGHT_MODES = {agl: "above the ground (AGL)", alt: "above the takeoff point (ALT)", asl: "above the takeoff ground, flown above sea level (ASL)"};
@@ -172,7 +176,8 @@
             copySource = found[0];
             copyName.textContent = copySource.name || "(untitled)";
             // only the models offered the route's type
-            [].forEach.call(copyModel.options, function (o) { o.disabled = !offersRouteType(o.value, copySource.route_type); });
+            var copyType = copySource.route_type === "waypoint" && copySource.settings && copySource.settings.shape ? "poi" : copySource.route_type;
+            [].forEach.call(copyModel.options, function (o) { o.disabled = !offersRouteType(o.value, copyType); });
             copyModel.value = copySource.model;    // defaults to an exact copy; the user picks a different model to change it
             showCopyNote();
             copyDialog.hidden = false;

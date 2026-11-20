@@ -26,9 +26,19 @@ describe("offersRouteType", () => {
         expect(offersRouteType("m30t", "linear")).toBe(true);
         expect(offersRouteType("nope", "area")).toBe(false);
     });
+    test("a POI route is a waypoint route DJI Fly cannot fly: it faces a point of interest", () => {
+        expect(offersRouteType("m4t", "poi")).toBe(true);
+        expect(offersRouteType("mini4pro", "waypoint")).toBe(true);
+        expect(offersRouteType("mini4pro", "poi")).toBe(false);
+    });
 });
 
 describe("copyNote", () => {
+    test("an oblique area copied for a DJI Fly drone becomes ortho, and says so", () => {
+        const note = copyNote({model: "m4t", route_type: "area", settings: {height: "50", collection_mode: "oblique"}}, "air3");
+        expect(note).toContain("DJI Fly takes ortho photos only: the copy is an ortho collection.");
+        expect(copyNote({model: "m4t", route_type: "area", settings: {height: "50", collection_mode: "oblique"}}, "m4e")).not.toContain("ortho");
+    });
     it("says a copy for the same model is exact", () => {
         expect(copyNote({model: "m4t", settings: {height: "50"}}, "m4t")).toBe("An exact copy.");
     });

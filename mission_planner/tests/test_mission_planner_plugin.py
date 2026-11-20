@@ -789,6 +789,16 @@ class TestRouteApi(BootTestCase):
         copied = self.copy({"height": "40", "lens_visible": "false", "lens_ir": "true"}, "m4t", "m4e")
         self.assertEqual(copied, {"height": "40", "lens_visible": "true", "lens_ir": "false"})
 
+    def test_an_oblique_area_copied_for_a_dji_fly_drone_becomes_ortho(self):
+        self.assertEqual(self.copy({"height": "50", "collection_mode": "oblique"}, "m4t", "air3")["collection_mode"], "ortho")
+        self.assertEqual(self.copy({"height": "50", "collection_mode": "oblique"}, "m4t", "m4e")["collection_mode"], "oblique")
+
+    def test_a_poi_route_cannot_be_copied_for_a_dji_fly_drone(self):
+        route = routes.create(owner=self.user, name="Original", route_type="waypoint", model="m4t", settings={"shape": {"radius": 20}})
+        res = self.client.post(API + "routes/%d/copy" % route.id, json.dumps({"model": "mini4pro"}), content_type="application/json")
+        self.assertEqual(res.status_code, 400, res.content[:200])
+        self.assertIn("point of interest", json.dumps(res.json()))
+
     def test_a_copy_stays_within_the_height_limits(self):
         self.assertEqual(self.copy({"height": "450"}, "m4t", "m4e")["height"], "500")
         self.assertEqual(self.copy({"height": "2"}, "m4e", "m4t")["height"], "2")
