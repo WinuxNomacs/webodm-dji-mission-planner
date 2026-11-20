@@ -1,5 +1,7 @@
 # DJI Mission Planner plugin for WebODM
 
+![An area route over a building in the editor's 3D view, on the lidar surface](docs/images/editor-3d.jpg)
+
 Plan survey flights for DJI drones in WebODM and download the mission file for DJI Pilot 2, or for DJI Fly on DJI's
 consumer drones. Made for the Matrice 4T (thermal and visible light) and the Matrice 4E, whose files were checked
 against Pilot 2's own.
