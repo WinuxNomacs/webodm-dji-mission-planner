@@ -283,8 +283,25 @@
                           tiles: ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
                           attribution: 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/">Terrain Tiles</a> (SRTM, USGS 3DEP and others)'};
 
-    function withProtocol(url, protocol) {
-        return url.indexOf("//") === 0 ? (protocol || "https:") + url : url;
+    // A URL starting // is loaded over https, whatever the page's protocol: on a WebODM served over http, Esri's and
+    // OpenStreetMap's http answers are redirects to https without Access-Control-Allow-Origin, which the browser refuses
+    // (checked 2026-11-20; their https answers allow any origin). Only the page's own server and local addresses (an
+    // http-only tile server in the house or office) keep the page's protocol.
+    function localHost(host, pageHost) {
+        host = host.toLowerCase();
+        if (host === (pageHost || "").toLowerCase() || host.charAt(0) === "[") return true;
+        if (host.indexOf(".") === -1 || host === "localhost" || /\.(localhost|local|lan|internal|home\.arpa)$/.test(host)) return true;
+        var ip = host.match(/^(\d+)\.(\d+)\.\d+\.\d+$/);
+        if (!ip) return false;
+        var a = +ip[1], b = +ip[2];
+        return a === 10 || a === 127 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || (a === 169 && b === 254);
+    }
+    // page: the page's location ({protocol, hostname}), or its protocol alone
+    function withProtocol(url, page) {
+        if (url.indexOf("//") !== 0) return url;
+        var protocol = typeof page === "string" ? page : page && page.protocol;
+        var host = url.slice(2).split(/[/:?#]/)[0];
+        return (protocol === "http:" && localHost(host, page && page.hostname) ? "http:" : "https:") + url;
     }
 
     function wmsUrl(bm, url) {
@@ -297,8 +314,8 @@
 
     // A MapLibre raster source for a basemap ({type: "tms" | "wms", url, subdomains, minzoom, maxzoom, attribution, ...}).
     // `protocol` is the page's ("http:" or "https:"), for URLs that start with //.
-    function basemapSource(bm, protocol) {
-        var url = withProtocol(bm.url || "", protocol);
+    function basemapSource(bm, page) {
+        var url = withProtocol(bm.url || "", page);
         if (bm.type === "wms") url = wmsUrl(bm, url);
 
         // Leaflet's {-y}: tile rows counted from the south

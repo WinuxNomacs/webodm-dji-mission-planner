@@ -368,7 +368,7 @@
     function applyBasemap(bm) {
         if (map.getLayer("mp-basemap")) map.removeLayer("mp-basemap");
         if (map.getSource("mp-basemap")) map.removeSource("mp-basemap");
-        map.addSource("mp-basemap", Core.basemapSource(bm, window.location.protocol));
+        map.addSource("mp-basemap", Core.basemapSource(bm, window.location));
         map.addLayer({id: "mp-basemap", type: "raster", source: "mp-basemap"}, map.getLayer("mp-relief") ? "mp-relief" : map.getLayer("mp-hillshade") ? "mp-hillshade" : (map.getLayer("mp-lines") ? "mp-lines" : undefined));
         if (relief) relief.basemapChanged();
         state.basemap = bm.label;

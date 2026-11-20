@@ -369,11 +369,26 @@ describe("basemaps", () => {
         expect(s).toMatchObject({tileSize: 256, scheme: "xyz", minzoom: 0, maxzoom: 21, attribution: "Map data: &copy; Google Maps"});
     });
 
-    it("follows the protocol of the page for URLs that start with //", () => {
-        expect(Core.basemapSource({url: "//tile.example.org/{z}/{x}/{y}.png"}, "http:").tiles).toEqual(["http://tile.example.org/{z}/{x}/{y}.png"]);
-        expect(Core.basemapSource({url: "//tile.example.org/{z}/{x}/{y}.png"}, "https:").tiles).toEqual(["https://tile.example.org/{z}/{x}/{y}.png"]);
-        expect(Core.basemapSource({url: "https://tile.example.org/{z}/{x}/{y}.png"}, "http:").tiles).toEqual(["https://tile.example.org/{z}/{x}/{y}.png"]);
+    it("loads URLs that start with // over https, even on a page served over http (Esri's http redirects are refused)", () => {
+        const page = {protocol: "http:", hostname: "webodm.example.org"};
+        expect(Core.basemapSource({url: "//server.arcgisonline.com/tile/{z}/{y}/{x}"}, page).tiles).toEqual(["https://server.arcgisonline.com/tile/{z}/{y}/{x}"]);
+        expect(Core.basemapSource({url: "//tile.example.org/{z}/{x}/{y}.png"}, "http:").tiles).toEqual(["https://tile.example.org/{z}/{x}/{y}.png"]);
+        expect(Core.basemapSource({url: "//tile.example.org/{z}/{x}/{y}.png"}, {protocol: "https:", hostname: "x"}).tiles).toEqual(["https://tile.example.org/{z}/{x}/{y}.png"]);
         expect(Core.basemapSource({url: "//tile.example.org/{z}/{x}/{y}.png"}).tiles[0]).toBe("https://tile.example.org/{z}/{x}/{y}.png");
+        expect(Core.basemapSource(hybrid, page).tiles[0]).toBe("https://mt0.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}");
+    });
+
+    it("keeps the page's http for its own server and local tile servers", () => {
+        const page = {protocol: "http:", hostname: "webodm.example.org"};
+        ["//webodm.example.org/tiles/{z}/{x}/{y}.png", "//localhost:8080/{z}/{x}/{y}.png", "//tiles/{z}/{x}/{y}.png", "//nas.local/{z}/{x}/{y}.png",
+         "//192.168.1.20/{z}/{x}/{y}.png", "//10.0.0.5:81/{z}/{x}/{y}.png", "//172.20.0.3/{z}/{x}/{y}.png", "//127.0.0.1/{z}/{x}/{y}.png", "//[::1]:8080/{z}/{x}/{y}.png"]
+            .forEach(url => expect(Core.basemapSource({url}, page).tiles[0]).toBe("http:" + url));
+        expect(Core.basemapSource({url: "//172.32.0.3/{z}/{x}/{y}.png"}, page).tiles[0]).toBe("https://172.32.0.3/{z}/{x}/{y}.png");
+    });
+
+    it("leaves URLs with their own protocol alone", () => {
+        expect(Core.basemapSource({url: "https://tile.example.org/{z}/{x}/{y}.png"}, "http:").tiles).toEqual(["https://tile.example.org/{z}/{x}/{y}.png"]);
+        expect(Core.basemapSource({url: "http://tile.example.org/{z}/{x}/{y}.png"}, "https:").tiles).toEqual(["http://tile.example.org/{z}/{x}/{y}.png"]);
     });
 
     it("uses Leaflet's default subdomains when {s} has none, and no subdomain when there is no {s}", () => {
