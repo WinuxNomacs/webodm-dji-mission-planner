@@ -8,14 +8,9 @@ to its title.
 
 **Up next**
 
-1. **Open: lidar terrain lifts a small AGL route over one building** (found 2026-11-20 on TestAreaRoute, the user to
-   decide): each waypoint flies the height above the highest ground within `terrain.RADIUS` (50 m, fitted against
-   Pilot 2 over a smooth 30 m terrain) of it, in the export (`wpml.dsm_of`) and the 3D view (`air._over_terrain`) alike.
-   On the lidar terrain (10 m, roofs and trees) a route about 56 m across is all within 50 m of a 33 m roof, so it flies
-   33 m higher than planned everywhere, its photos at twice the GSD. Options: a smaller radius for lidar terrain only
-   (10-15 m, recommended), a per-route clearance setting, or 50 m kept with a plainer warning. With it, a small fix: the
-   lidar tiles' URL does not change when a unit is rebuilt, and the browser and the page's reader keep them (an hour,
-   `Cache-Control`; no version), so a tab open across a rebuild reads the old surface.
+1. **The lidar tiles' cache** (found 2026-11-20): the lidar tiles' URL does not change when a unit is rebuilt, and the
+   browser and the page's reader keep them (an hour, `Cache-Control`; no version), so a tab open across a rebuild reads
+   the old surface. A version in the URL (the unit's build time) would fix it.
 2. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
    where a processed task the user can see covers the route, the 3D view's ground is that task's DSM instead of the
    lidar, so the ground is as new as the last flight and at the task's detail. To plan with the user; the
@@ -56,6 +51,15 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
 **Done**
+- **Lidar terrain: 15 m along each leg** (2026-11-20, the user chose it, `lidar-leg-radius`): over a lidar terrain each
+  waypoint is over the highest ground within 15 m of the legs to and from it (`terrain.flown_ground_heights`,
+  `LIDAR_RADIUS`; the terrain known by its file name, `is_lidar`), in `wpml.dsm_of`, `linear.dsm_of`, `djifly` (its base
+  the lowest ground within 15 m of the takeoff point, `lowest_ground_near`) and `air` (the 3D view, `plan_terrain` now
+  giving the name too). COP30 and imported DSMs keep 50 m round each waypoint. Why along the legs: the waypoints are only
+  the lines' ends (Pilot 2's own exports too, up to 113 m apart), flown straight, so a radius round them alone misses a
+  building mid-line. Measured on TestAreaRoute first: little lower there (31-38 m over the lowest ground instead of 38 m
+  everywhere), since its lines end by 30-35 m trees. Tests: `test_mission_terrain.py` (8), `test_air.py`,
+  `test_djifly.py`.
 - **Bug: false collisions in Brave** (2026-11-20, `fix-canvas-noise`): Brave's fingerprinting protection alters a few
   pixels of every canvas read by one; a red one higher is 256 m in Terrarium, and Phase 22's band takes the highest pixel
   along the route, so TestAreaRoute showed 10 collisions 38 m above everything (Firefox and Chromium were right).

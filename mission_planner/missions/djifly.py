@@ -101,8 +101,10 @@ def survey_points(lines, spacing, kind=None):
     return points
 
 
-def _relative_survey(points, s, kind, tif):
-    """The height above the takeoff point of each survey waypoint"""
+def _relative_survey(points, s, kind, tif, terrain_name=None):
+    """The height above the takeoff point of each survey waypoint: over a lidar terrain (by its file name), each over
+    the highest ground along its legs from the lowest ground near the takeoff point (terrain.flown_ground_heights,
+    terrain.lowest_ground_near: the highest within 50 m there could be a tree, which would fly the route lower)"""
     if s.height_mode != "realTimeFollowSurface":
         return [s.height] * len(points)         # ALT, and ASL: one altitude, the takeoff point's ground plus the height
     if tif is None:
@@ -110,11 +112,14 @@ def _relative_survey(points, s, kind, tif):
     at = [p for p, _ in points]
     takeoff = (s.takeoff_ref_point[1], s.takeoff_ref_point[0]) if s.takeoff_ref_point else at[0]
     try:
-        grounds = terrain.ground_heights(tif, at + [takeoff])
+        if terrain.is_lidar(terrain_name):
+            grounds, base = terrain.flown_ground_heights(tif, at, terrain_name), terrain.lowest_ground_near(tif, *takeoff)
+        else:
+            grounds = terrain.ground_heights(tif, at + [takeoff])
+            grounds, base = grounds[:-1], grounds[-1]
     except terrain.TerrainError as e:
         raise ExportError("The route's terrain does not cover it: %s" % e)
-    base = grounds[-1]
-    return [s.height + g - base for g in grounds[:-1]]
+    return [s.height + g - base for g in grounds]
 
 
 def _relative_waypoints(s):
@@ -138,7 +143,7 @@ def _relative_waypoints(s):
     return [h + p.ground - base for h, p in zip(heights, s.points)]
 
 
-def route_points(kind, plan, s, tif=None):
+def route_points(kind, plan, s, tif=None, terrain_name=None):
     """The mission's points: [{lon, lat, height, photo, pitch, heading, hover}], heights above the takeoff point"""
     if kind == "waypoint":
         heights = _relative_waypoints(s)
@@ -157,7 +162,7 @@ def route_points(kind, plan, s, tif=None):
         found = survey_points(lines, plan.interval, kind)
     else:
         found = survey_points(plan.nadir.lines, plan.nadir.interval, kind)
-    heights = _relative_survey(found, s, kind, tif)
+    heights = _relative_survey(found, s, kind, tif, terrain_name)
     return [{"lon": p[0], "lat": p[1], "height": h, "photo": photo, "pitch": -90.0, "heading": None, "hover": 0}
             for (p, photo), h in zip(found, heights)]
 
@@ -335,7 +340,7 @@ def mission_files(points, s, speed, now_ms, author):
     return template, _xml(root)
 
 
-def build(kind, plan, s, now_ms, name, tif=None, speed=None):
+def build(kind, plan, s, now_ms, name, tif=None, speed=None, terrain_name=None):
     """
     The route as DJI Fly missions: [(file name, kmz bytes), ...], one, or several when it has more than MAX_WAYPOINTS
     points (name_1_of_3.kmz ...).
@@ -347,7 +352,7 @@ def build(kind, plan, s, now_ms, name, tif=None, speed=None):
     drone = DRONES[s.model]
     if drone.max_speed is not None:
         speed = min(speed, drone.max_speed)
-    parts = split(route_points(kind, plan, s, tif), kind)
+    parts = split(route_points(kind, plan, s, tif, terrain_name), kind)
     for part in parts:
         if any(not math.isfinite(p["height"]) for p in part):
             raise ExportError("A point's height cannot be worked out")

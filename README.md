@@ -98,6 +98,9 @@ fork of WebODM where it was written, and runs on an unmodified WebODM 4.0.0 or l
   waits (about 15 s a km²). COP30 is used instead, with the reason in the terrain status, outside the conterminous US,
   for routes over 4 km² with their 200 m margin, where there is no USGS lidar or its heights are not NAVD88 meters
   (each unit is checked against AWS's bare ground), or when a unit or the GEOID18 grid fails.
+  Over the lidar terrain, each waypoint flies the height above the highest point within 15 m of the legs flown to and
+  from it, so that the straight leg between two waypoints clears every tree and roof along it; over COP30 or an
+  imported terrain, above the highest point within 50 m of the waypoint, as Pilot 2's own exports fly.
   The terrain travels inside the KMZ: load it in Pilot 2 on the controller. FlightHub 2 does not keep the terrain of
   any imported KMZ (its own exports included): it says "Altitude relative to ground error. Refresh file", and Update
   replaces the terrain with FlightHub 2's Global Elevation Data.

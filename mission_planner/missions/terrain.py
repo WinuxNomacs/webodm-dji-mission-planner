@@ -28,6 +28,11 @@ MAX_SIDE = 10000.0      # meters: a larger area is refused (the service limits t
 # The ground height of a waypoint is the highest ground within this many meters of it. Fitted against the sample
 # Pilot 2 export: with 50 m no waypoint is more than 0.9 m below Pilot 2's own height, and on average 2 m above it.
 RADIUS = 50.0
+# Over a lidar terrain (lidar_terrain.py: the highest point of each 10 m cell, trees and roofs), each waypoint is over the
+# highest ground within this many meters of the legs flown to and from it instead (flown_ground_heights): 50 m round a
+# waypoint lifts a whole small route over one building, and misses one in the middle of a long line, which the aircraft
+# flies straight. 15 m leaves room for the GPS without RTK, the wind and the lidar's own placing.
+LIDAR_RADIUS = 15.0
 
 METERS_PER_DEGREE = 111320.0
 
@@ -190,3 +195,69 @@ def ground_heights(tif, points, radius=RADIUS):
                 raise TerrainError("The terrain does not cover the route")
             out.append(float(heights[r0:r1, c0:c1].max()))
     return out
+
+
+def is_lidar(name):
+    """Whether the terrain of that file name was made from lidar (lidar_terrain.file_name)"""
+    return bool(name) and "_LIDAR" in name
+
+
+def _cells(src, heights):
+    """The (lon, lat) centre of each cell, as two arrays"""
+    rows, cols = np.indices(heights.shape)
+    lons, lats = src.transform * (cols + 0.5, rows + 0.5)
+    return lons, lats
+
+
+def _near(src, heights, lons, lats, a, b, radius):
+    """The heights of the cells within `radius` meters of the segment from a to b ((lon, lat); a point when a is b), a
+    cell counting when any of it may be (its centre within the radius and half its diagonal); none when off the terrain"""
+    lat0 = (a[1] + b[1]) / 2
+    kx, ky = METERS_PER_DEGREE * math.cos(math.radians(lat0)), 110540.0
+    half = math.hypot(abs(src.transform.a) * kx, abs(src.transform.e) * ky) / 2
+    west, south, east, north = src.bounds
+    reach_lon, reach_lat = (radius + half) / kx, (radius + half) / ky
+    if (max(a[0], b[0]) + reach_lon < west or min(a[0], b[0]) - reach_lon > east
+            or max(a[1], b[1]) + reach_lat < south or min(a[1], b[1]) - reach_lat > north):
+        return heights[:0, :0].ravel()
+    bx, by = (b[0] - a[0]) * kx, (b[1] - a[1]) * ky
+    px, py = (lons - a[0]) * kx, (lats - a[1]) * ky
+    length = bx * bx + by * by
+    t = np.clip((px * bx + py * by) / length, 0, 1) if length else 0
+    return heights[np.hypot(px - t * bx, py - t * by) <= radius + half]
+
+
+def flown_ground_heights(tif, points, name):
+    """
+    The ground of each (lon, lat) waypoint of a path flown in order, WGS84-ellipsoidal meters: over a lidar terrain (by
+    its file `name`), the highest ground within LIDAR_RADIUS of the legs flown to and from it, so that a leg flown
+    straight between two waypoints at their heights clears everything along it; over any other, ground_heights (RADIUS
+    round each waypoint).
+    """
+    if not is_lidar(name):
+        return ground_heights(tif, points)
+    with MemoryFile(tif) as f, f.open() as src:
+        heights = src.read(1)
+        lons, lats = _cells(src, heights)
+        legs = list(zip(points, points[1:])) if len(points) > 1 else [(p, p) for p in points]
+        tops = []
+        for a, b in legs:
+            near = _near(src, heights, lons, lats, a, b, LIDAR_RADIUS)
+            if not near.size:
+                raise TerrainError("The terrain does not cover the route")
+            tops.append(float(near.max()))
+    if len(points) == 1:
+        return tops
+    return [max(tops[max(i - 1, 0)], tops[min(i, len(tops) - 1)]) for i in range(len(points))]
+
+
+def lowest_ground_near(tif, lon, lat, radius=LIDAR_RADIUS):
+    """The lowest ground within `radius` meters of a point (a lidar terrain's takeoff point: the ground the aircraft
+    stands on, not a tree or a roof beside it)"""
+    with MemoryFile(tif) as f, f.open() as src:
+        heights = src.read(1)
+        lons, lats = _cells(src, heights)
+        near = _near(src, heights, lons, lats, (lon, lat), (lon, lat), radius)
+        if not near.size:
+            raise TerrainError("The terrain does not cover the route")
+        return float(near.min())

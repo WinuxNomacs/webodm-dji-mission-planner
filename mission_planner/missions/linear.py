@@ -425,9 +425,10 @@ def terrain_points(p, s):
 
 
 def dsm_of(p, s, tif, name):
-    """The Dsm of the route: each waypoint flies `s.height` above the highest ground within terrain.RADIUS of it"""
+    """The Dsm of the route: each waypoint flies `s.height` above its ground (terrain.flown_ground_heights: along its
+    legs over a lidar terrain, else the highest within terrain.RADIUS of it)"""
     try:
-        heights = [[round(g + s.height, 3) for g in terrain.ground_heights(tif, p.waypoints)]]
+        heights = [[round(g + s.height, 3) for g in terrain.flown_ground_heights(tif, p.waypoints, name)]]
         takeoff = None
         if s.takeoff_ref_point is not None:
             lat, lon = s.takeoff_ref_point[:2]

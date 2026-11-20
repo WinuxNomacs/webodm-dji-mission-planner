@@ -657,10 +657,11 @@ def mission_warnings(plan, s):
 
 
 def terrain_warning():
-    return ("The heights follow the route's terrain, the highest point within %g m of each waypoint: the lidar surface "
-            "(trees and roofs, 10 m) where the terrain was made from lidar, else public elevation data (30 m) that can "
-            "differ from the real surface and miss single trees, roofs and masts: check the height before flying"
-            % terrain.RADIUS)
+    return ("The heights follow the route's terrain: the lidar surface (trees and roofs, 10 m) where the terrain was made "
+            "from lidar, each waypoint over its highest point within %g m of the legs to and from it; else public "
+            "elevation data (30 m), its highest point within %g m of each waypoint, which can differ from the real "
+            "surface and miss single trees, roofs and masts: check the height before flying"
+            % (terrain.LIDAR_RADIUS, terrain.RADIUS))
 
 
 def terrain_points(plan, s):
@@ -672,11 +673,12 @@ def terrain_points(plan, s):
 
 
 def dsm_of(plan, s, tif, name):
-    """The Dsm of the mission: each waypoint flies `s.height` above the highest ground within terrain.RADIUS of it,
+    """The Dsm of the mission: each waypoint flies `s.height` above its ground (terrain.flown_ground_heights: along its
+    legs over a lidar terrain, else the highest within terrain.RADIUS of it),
     the start of the route `s.height` above the ground under it (as Pilot 2's oblique file has them; its ortho ones
     have no start)"""
     try:
-        heights = [[round(g + s.height, 3) for g in terrain.ground_heights(tif, p.waypoints)]
+        heights = [[round(g + s.height, 3) for g in terrain.flown_ground_heights(tif, p.waypoints, name)]
                    for p in [plan.nadir] + list(plan.oblique or [])]
         start = None
         if s.collection_mode == "oblique":

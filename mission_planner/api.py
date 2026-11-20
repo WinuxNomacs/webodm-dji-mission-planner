@@ -457,7 +457,7 @@ def plan_result(request, kind, plan, s):
     elif kind == "linear":
         result = {"summary": linear_summary(plan, s), "warnings": linear.mission_warnings(plan, s)}
         result.update(linear_geojson(plan))
-        result["air"] = air.linear_route(plan, s, plan_terrain(request, kind, plan, s))
+        result["air"] = air.linear_route(plan, s, *plan_terrain(request, kind, plan, s))
     elif kind == "slope":
         result = {"summary": slope_summary(plan, s), "warnings": slope.mission_warnings(plan, s)}
         result.update(slope_geojson(plan))
@@ -469,7 +469,7 @@ def plan_result(request, kind, plan, s):
     else:
         result = {"summary": summary(plan, s), "warnings": wpml.mission_warnings(plan, s)}
         result.update(geojson(plan))
-        result["air"] = air.area(plan, s, plan_terrain(request, kind, plan, s))
+        result["air"] = air.area(plan, s, *plan_terrain(request, kind, plan, s))
     if djifly.is_djifly(s.model):
         result["warnings"] = result["warnings"] + djifly.warnings(kind, s)
     return result
@@ -509,18 +509,18 @@ class ExportView(MissionView):
 
     def djifly(self, request, kind, plan, s):
         """The route as DJI Fly missions (missions/djifly.py): one .kmz, or a .zip of them when it was split"""
-        tif = None
+        tif = terrain_name = None
         if kind in ("area", "linear") and uses_dsm(kind, s):
             dsm = route_terrain(request, kind, plan, s, source=terrain_source(request, required=False))
             if dsm is None:
                 return Response({"error": "Fetch the terrain under the route first", "needs_terrain": True},
                                 status=status.HTTP_409_CONFLICT)
-            tif = dsm[0]
+            tif, terrain_name = dsm
         speed = (summary(plan, s)["speed"] if kind == "area" else linear_summary(plan, s)["speed"] if kind == "linear"
                  else s.speed)
         name = re.sub(r"[^A-Za-z0-9._-]+", "_", str(request.data.get("name") or "mission"))[:60].strip("._") or "mission"
         try:
-            files = djifly.build(kind, plan, s, int(time.time() * 1000), name, tif=tif, speed=speed)
+            files = djifly.build(kind, plan, s, int(time.time() * 1000), name, tif=tif, speed=speed, terrain_name=terrain_name)
         except wpml.ExportError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         data, file_name, content_type = djifly.bundle(files, name)
@@ -579,16 +579,16 @@ def route_terrain(request, kind, plan, s, source=None):
 
 
 def plan_terrain(request, kind, plan, s):
-    """The GeoTIFF bytes of the route's cached terrain for the 3D view's heights of an AGL route over it, or None:
-    not over a DSM, no route_id, no terrain yet, or one that does not cover the plan (the 3D view then draws the route
-    above its own surface)"""
+    """The (GeoTIFF bytes, name) of the route's cached terrain for the 3D view's heights of an AGL route over it, or
+    (None, None): not over a DSM, no route_id, no terrain yet, or one that does not cover the plan (the 3D view then
+    draws the route above its own surface)"""
     if not uses_dsm(kind, s) or isinstance(request.data.get("route_id"), bool) or not isinstance(request.data.get("route_id"), int):
-        return None
+        return None, None
     try:
         found = route_terrain(request, kind, plan, s)
     except Http404:
-        return None
-    return found[0] if found else None
+        return None, None
+    return found if found else (None, None)
 
 
 def own_route(request, pk, route_types=None):

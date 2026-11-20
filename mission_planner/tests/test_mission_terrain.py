@@ -22,10 +22,10 @@ CELL = 1 / 3600.0
 SIZE = 36
 
 
-def geotiff(values, crs="EPSG:4326", dtype="float32", nodata=None, west=WEST, north=NORTH):
+def geotiff(values, crs="EPSG:4326", dtype="float32", nodata=None, west=WEST, north=NORTH, cell=CELL):
     with MemoryFile() as f:
         with f.open(driver="GTiff", width=values.shape[1], height=values.shape[0], count=1, dtype=dtype, crs=crs,
-                    transform=from_origin(west, north, CELL, CELL), nodata=nodata) as dst:
+                    transform=from_origin(west, north, cell, cell), nodata=nodata) as dst:
             dst.write(values.astype(dtype), 1)
         return f.read()
 
@@ -177,3 +177,74 @@ class TestGroundHeights(SimpleTestCase):
         self.assertTrue(terrain.covers(self.tif, [cell_centre(10, 10), cell_centre(20, 20)]))
         self.assertFalse(terrain.covers(self.tif, [cell_centre(10, 10), cell_centre(0, 0)]))     # 50 m reaches past the edge
         self.assertFalse(terrain.covers(self.tif, [(WEST - 0.01, NORTH - 0.005)]))
+
+
+# A lidar terrain's grid: cells of 10 m north to south (about 7.5 m east to west here), flat at 200 m
+LIDAR_CELL = 10 / 110540.0
+LIDAR_NAME = "e39c8a7e_wgs84_LIDAR10M_N41W080_dem.tif"
+
+
+def meters_east(m):
+    return m / (111320.0 * np.cos(np.radians(NORTH - 0.002)))
+
+
+class TestFlownGroundHeights(SimpleTestCase):
+    """Lidar terrain: each waypoint over the highest ground within terrain.LIDAR_RADIUS of the legs flown to and from it"""
+    def terrain(self, block=None):
+        """Flat ground at 200 m with one 40 m block (a building) at (meters east, meters north) of the first point"""
+        values = np.full((60, 160), 200.0)
+        if block:
+            col = int((meters_east(block[0]) + (WEST_OF_START - WEST)) / LIDAR_CELL)
+            row = int(((NORTH - START_LAT) - block[1] / 110540.0) / LIDAR_CELL)
+            values[row, col] = 240.0
+        return geotiff(values, dtype="int16", cell=LIDAR_CELL)
+
+    def path(self, *east):
+        return [(WEST_OF_START + meters_east(e), START_LAT) for e in east]
+
+    def test_lidar_terrain_is_known_by_its_file_name(self):
+        self.assertTrue(terrain.is_lidar(LIDAR_NAME))
+        self.assertFalse(terrain.is_lidar("wgs84_COP30_N41W080_dem.tif"))
+        self.assertFalse(terrain.is_lidar("wgs84_ASTGTMV003_N41W080_dem_2.tif"))
+        self.assertFalse(terrain.is_lidar(None))
+
+    def test_a_building_in_the_middle_of_a_leg_lifts_both_its_ends(self):
+        tif = self.terrain(block=(300, 0))
+        self.assertEqual(terrain.flown_ground_heights(tif, self.path(0, 150, 450), LIDAR_NAME), [200, 240, 240])
+        # 150 m from either end of a longer leg: the radius round the waypoints alone would fly into it
+        self.assertEqual(terrain.flown_ground_heights(tif, self.path(150, 450), LIDAR_NAME), [240, 240])
+        self.assertEqual(terrain.ground_heights(tif, self.path(150, 450), radius=terrain.LIDAR_RADIUS), [200, 200])
+
+    def test_each_waypoint_takes_the_higher_of_its_two_legs(self):
+        tif = self.terrain(block=(450, 0))
+        self.assertEqual(terrain.flown_ground_heights(tif, self.path(0, 300, 600, 900), LIDAR_NAME), [200, 240, 240, 200])
+
+    def test_a_building_beside_a_leg_counts_within_the_radius_and_not_beyond_it(self):
+        self.assertEqual(terrain.flown_ground_heights(self.terrain(block=(150, 8)), self.path(0, 300), LIDAR_NAME), [240, 240])
+        self.assertEqual(terrain.flown_ground_heights(self.terrain(block=(150, 40)), self.path(0, 300), LIDAR_NAME), [200, 200])
+
+    def test_a_path_of_one_point_takes_the_ground_within_the_radius_of_it(self):
+        self.assertEqual(terrain.flown_ground_heights(self.terrain(block=(8, 0)), self.path(0), LIDAR_NAME), [240])
+        self.assertEqual(terrain.flown_ground_heights(self.terrain(block=(60, 0)), self.path(0), LIDAR_NAME), [200])
+
+    def test_other_terrain_keeps_the_highest_ground_within_50_m_of_each_waypoint(self):
+        tif = self.terrain(block=(300, 0))
+        for name in ("wgs84_COP30_N41W080_dem.tif", None):
+            self.assertEqual(terrain.flown_ground_heights(tif, self.path(0, 270, 600), name),
+                             terrain.ground_heights(tif, self.path(0, 270, 600)))
+        self.assertEqual(terrain.flown_ground_heights(tif, self.path(0, 270, 600), None), [200, 240, 200])
+
+    def test_a_leg_off_the_terrain_is_refused(self):
+        with self.assertRaisesRegex(TerrainError, "does not cover"):
+            terrain.flown_ground_heights(self.terrain(), [(WEST - 0.01, START_LAT), (WEST - 0.009, START_LAT)], LIDAR_NAME)
+
+    def test_the_lowest_ground_near_a_point_is_its_lowest_cell_within_the_radius(self):
+        tif = self.terrain(block=(0, 0))
+        self.assertEqual(terrain.lowest_ground_near(tif, *self.path(0)[0]), 200)
+        values = np.full((60, 120), 230.0)
+        values[30, 30] = 205.0
+        lon, lat = WEST + 30.5 * LIDAR_CELL, NORTH - 30.5 * LIDAR_CELL
+        self.assertEqual(terrain.lowest_ground_near(geotiff(values, dtype="int16", cell=LIDAR_CELL), lon + meters_east(10), lat), 205)
+
+
+WEST_OF_START, START_LAT = WEST + 10.5 * LIDAR_CELL, NORTH - 30.5 * LIDAR_CELL

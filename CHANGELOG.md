@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- AGL routes over the lidar terrain fly each waypoint over the highest point within 15 m of the legs to and from it,
+  instead of within 50 m of the waypoint: a small route is no longer lifted whole over one building nearby, and a
+  building in the middle of a long line, which the 50 m missed, is now flown over. In the KMZ, DJI Fly's missions and the
+  3D view alike; COP30 and imported terrains keep 50 m. DJI Fly's heights over the lidar terrain are now measured from
+  the lowest ground within 15 m of the takeoff point, not the highest within 50 m (a tree there flew the route lower).
 - No more false collisions in Brave: the heights of the surface are read from its tiles without a canvas, whose
   pixels Brave alters slightly against fingerprinting (one step in a tile's red is 256 m, so the route showed red far
   above everything).

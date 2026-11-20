@@ -8,7 +8,8 @@ measured from:
 
 - "sea": above sea level (EGM96), where the route knows it: ALT with the takeoff point's ground height, ASL (an
   area or linear route's at the takeoff point's ground plus the height), AGL over
-  the route's terrain (the heights the export gives each waypoint, the aircraft flying straight between them), a
+  the route's terrain (the heights the export gives each waypoint, terrain.flown_ground_heights, the aircraft flying
+  straight between them), a
   waypoint route's AGL with every point's ground, slope and building routes (their ellipsoidal heights);
 - "surface": above the 3D view's surface under each point (AGL without the route's terrain yet, or without the geoid
   grid): the browser adds the surface;
@@ -56,20 +57,30 @@ def _flat(height):
     return lambda points: [height] * len(points)
 
 
-def _over_terrain(paths, drops, height, tif):
-    """Heights above sea level over the route's terrain (ellipsoidal): the highest ground within terrain.RADIUS of each
-    point plus the height, as the export gives the waypoints; None when the terrain or the geoid cannot be had"""
+def _over_terrain(paths, drops, height, tif, name):
+    """Heights above sea level over the route's terrain (ellipsoidal, its file `name`): each path's waypoints over their
+    ground plus the height, as the export gives them (terrain.flown_ground_heights), and the drops from the same heights
+    (they are the ends of the paths' lines); None when the terrain or the geoid cannot be had"""
     if tif is None:
         return None
     try:
         n = geoid.undulation(*_middle([p for path in paths for p in path]))
-        return _result("sea", paths, drops, lambda points: [g + height - n for g in terrain.ground_heights(tif, points)])
+        out, at = [], {}
+        for path in paths:
+            grounds = terrain.flown_ground_heights(tif, path, name)
+            out.append(_with(path, [g + height - n for g in grounds]))
+            for p, g in zip(path, grounds):
+                at.setdefault(tuple(p), g)
+        for d in drops:
+            if tuple(d) not in at:
+                at[tuple(d)] = terrain.flown_ground_heights(tif, [d], name)[0]
+        return {"reference": "sea", "paths": out, "drops": _with(drops, [at[tuple(d)] + height - n for d in drops])}
     except (geoid.GeoidError, terrain.TerrainError) as e:
         logger.info("The route's heights in 3D fall back on the surface: %s", e)
         return None
 
 
-def _area_like(paths, drops, s, mode, uses_dsm, tif):
+def _area_like(paths, drops, s, mode, uses_dsm, tif, name):
     """Area and linear routes: one height for the route, in one of wpml's height modes"""
     if mode in ("EGM96", "relativeToStartPoint"):
         # ASL flies one altitude, the takeoff point's ground plus the height (wpml.asl_heights), as ALT does; its
@@ -78,24 +89,24 @@ def _area_like(paths, drops, s, mode, uses_dsm, tif):
             return _result("sea", paths, drops, _flat(s.takeoff_ref_point[2] + s.height))
         return _result("takeoff", paths, drops, _flat(s.height))
     if uses_dsm:
-        over = _over_terrain(paths, drops, s.height, tif)
+        over = _over_terrain(paths, drops, s.height, tif, name)
         if over is not None:
             return over
     return _result("surface", paths, drops, _flat(s.height))
 
 
-def area(plan, s, tif=None):
+def area(plan, s, tif=None, name=None):
     passes = [plan.nadir] + list(plan.oblique or [])
     paths = [list(p.waypoints) for p in passes]
     drops = _ends([line for p in passes for line in p.lines])
-    return _area_like(paths, drops, s, s.height_mode, wpml.uses_dsm(s), tif)
+    return _area_like(paths, drops, s, s.height_mode, wpml.uses_dsm(s), tif, name)
 
 
-def linear_route(plan, s, tif=None):
+def linear_route(plan, s, tif=None, name=None):
     lines = list(plan.lines)
     if plan.bend is not None:
         lines.append(plan.waypoints[plan.bend:])
-    return _area_like([list(plan.waypoints)], _ends(lines), s, s.height_mode, linear.uses_dsm(s), tif)
+    return _area_like([list(plan.waypoints)], _ends(lines), s, s.height_mode, linear.uses_dsm(s), tif, name)
 
 
 def waypoint_route(s):
