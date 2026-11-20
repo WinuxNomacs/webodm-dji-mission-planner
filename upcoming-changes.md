@@ -11,8 +11,12 @@ to its title.
 Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
 commits, then make it public.
 
-The plugin is for development only (the user, 2026-11-17): version 1.0.0 is merged but not released, and no release
-is planned: no tag, no GitHub release, no zip handed out.
+Releases: 1.0.0 was merged on 2026-11-17 but never published (the plugin was for development only then). 2.0.0, the
+first published release, was prepared on 2026-11-20 at the user's request (2.0.0 because 1.0.0 was kept and WebODM 3.3.2
+was dropped). Before it, a review of everything changed since the 2026-11-19 code review found 11 issues (none severe),
+fixed on `release-review-fixes`: broken KMZ uploads, route types on plan and export, DJI Fly size check and takeoff
+warning, lidar files removed mid-read, queued lidar units going stale, POI and oblique copies for DJI Fly, KML without
+the geoid grid, readable download errors, double downloads, and the remembered model.
 
 **Later**
 1. **Finer terrain for US routes: shelved** (2026-11-17, the user): built and tested on branch `phase-5-3dep`, not

@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 2.0.0 (2026-11-20)
+
+The first published release. Needs WebODM 4.0.0 or later.
 
 - The plugin is now called DJI Mission Planner (its repo webodm-dji-mission-planner). Its internal name
   `mission_planner` is unchanged: saved routes, terrain and URLs carry on as they were.
@@ -18,6 +20,13 @@
 - Rectangle draws square to the screen on a turned map (in 2D and 3D), no longer always along north and east.
 - Area and linear routes are laid out in ground metres: the spacing between lines, the strip's width and the
   route's length are now what is asked for, where UTM's scale left them up to 0.1% off (a few cm on 26 m lines).
+- The routes list remembers the model chosen under Select Model (in this browser). DJI Fly drones are not offered POI
+  routes, which DJI Fly missions cannot fly; an oblique area copied for one becomes an ortho collection.
+- A DJI Fly AGL route without a takeoff point warns that its heights are above the first point's ground.
+- Fixes from the release review: an encrypted or damaged KMZ is refused with a message; a slope or geometric route's
+  KML downloads (its shape) when the geoid grid cannot be had; a refused download says why instead of a parse error,
+  and a second click while a download runs is ignored; a huge DJI Fly route is refused at once; lidar units waiting
+  in a long build are not built twice, and one removed by the 5 GB cap while it is read no longer fails a request.
 
 - Fixes from a code review:
   - Saving a route no longer drops its cached takeoff height ("Use cached values"), and a takeoff height still being
@@ -75,7 +84,7 @@
   `plugins/mission_planner_data/grids`). The flight's own heights were not affected. Routes imported before this
   keep the old value: press "Fetch from elevation data" on them.
 
-## 1.0.0 (2026-11-17)
+## 1.0.0 (2026-11-17, not published)
 
 The Mission Planner moved here from LuxODM (where it was version 0.9.0), to install on WebODM as a plugin.
 

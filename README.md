@@ -56,8 +56,8 @@ Putting a mission on the controller (DJI Fly lists only missions made in it):
 3. Replace that `.kmz` with the downloaded one, renamed to the same name.
 4. Unplug the controller, close DJI Fly and open it again; open the mission and check it before flying.
 
-**Status: in development.** The planner was moved here from LuxODM, a fork of WebODM where it was written, and runs
-on an unmodified WebODM; see `upcoming-changes.md`. There is no release yet.
+**Status:** version 2.0.0, the first published release (see `CHANGELOG.md`). The planner was moved here from LuxODM, a
+fork of WebODM where it was written, and runs on an unmodified WebODM 4.0.0 or later.
 
 **Experimental: use it at your own risk. Check every mission in DJI Pilot 2, FlightHub 2 or DJI Fly before flying it.**
 
@@ -140,10 +140,11 @@ current Chrome, Edge, Firefox or Safari.
 
 ## Installing
 
-**For development only:** no release is published and none is planned. The plugin runs on the dev stacks (see
-Developing); a zip for a test install is built with `dev/package.sh`.
+Needs WebODM 4.0.0 or later.
 
-1. Build the zip with `dev/package.sh` (`dist/mission_planner-<version>.zip`).
+1. Download `mission_planner-<version>.zip` from the repository's
+   [Releases](https://github.com/WinuxNomacs/webodm-dji-mission-planner/releases) (or build it from a checkout with
+   `dev/package.sh`).
 2. In WebODM, as an administrator: Administration > Plugins, "Load Plugin (.zip)", and choose the zip. The plugin is
    enabled when installed, and "DJI Mission Planner" shows in the side menu.
 
