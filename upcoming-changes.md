@@ -10,8 +10,8 @@ to its title.
 
 1. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
    where a processed task the user can see covers the route, the 3D view's ground is that task's DSM instead of the
-   lidar, so the ground is as new as the last flight and at the task's detail. To plan with the user; the
-   proposed design and open decisions are in the "Phase 23" section.
+   lidar, so the ground is as new as the last flight and at the task's detail, and its orthophoto as the photo. Planned
+   with the user 2026-11-20 (the "Phase 23" section).
 
 Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
 commits, then make it public.
@@ -1150,7 +1150,7 @@ hillshade and the relief lowers the drawing's quality; a second source would loa
   margin above that highest surface.
 - **Relief in 3D only,** with the photo kept faint over it (its roads and labels still readable).
 
-## Phase 23: your WebODM task's DSM in the 3D view (requested 2026-11-20, to plan)
+## Phase 23: your WebODM task's DSM in the 3D view (requested 2026-11-20, planned 2026-11-20)
 
 **Why** (the user, 2026-11-20): the lidar is old and the AWS copy has stopped taking new surveys. TestAreaRoute's area
 has only USGS's `IL_4_County_QL1_LiDAR_2016_B16` (published 2019; The National Map, checked 2026-11-20). The newest
@@ -1166,22 +1166,58 @@ from straight above, unlike the satellite photo that leans tall buildings (Phase
   handing them to MapLibre). The pointer height, collisions, the collision margin and Relief all read that surface, so
   they would follow a task's DSM without changes of their own.
 
-**Proposed:**
-- the task's DSM cut into the same Terrarium tiles in the worker, cached per task beside the lidar units, removed when
-  the task is deleted or reprocessed;
-- the task's surface used inside its extent, the lidar (or AWS) outside it;
-- only tasks the user can view.
+**Measured 2026-11-20** on RoofSampleRGB (restored on :8009 by the user; covers the m4t-test-poi-waypoint route, about
+53 x 63 m, a 5 cm DSM and a 1 cm orthophoto, inside two built lidar units), 2,314 points: the DSM is WGS84-ellipsoidal
+(209-220 m against the lidar's 243-260 m above sea level), as the slope editor found; shifted by EGM96 (-34.2 m there)
+it sits 1.1 m above the lidar on open ground (the lidar's lowest 30%), median -1.85 m overall (roofs and trees since the
+2016 lidar). So a task as it is steps about 1 m at its edge. WebODM serves a task's orthophoto as map tiles itself
+(`/api/projects/<p>/tasks/<t>/orthophoto/tiles/{z}/{x}/{y}.png`, its permissions, `tiles.json` with bounds and zooms),
+and its DSM tiles only coloured, not Terrarium.
 
-**To measure first:**
-- the DSM's vertical datum: ODM follows the photos' GPS altitudes (or the GCPs), so compare it with the lidar on
-  a place both cover and see the offset;
-- the size and time of cutting a large task's DSM;
-- the edge between the task and the lidar.
+**Decided with the user (2026-11-20):**
+1. **Map layers** (the stack button on the route editor's map, both editors) lists the compatible tasks; the user picks
+   at most one, and turns on its **DSM** (the 3D ground), its **Orthophoto** (the photo), or both.
+2. **Compatible**: processed tasks the user can view, with a DSM or an orthophoto, whose area **overlaps** the route's
+   area (its points and takeoff point); outside the task the lidar, AWS's terrain and the basemap show as now.
+3. **Heights match the ground around**: the task's DSM is shifted by its median difference from the surface under it
+   (the lidar where built, else AWS's terrain) on open ground, and its edge blended into that surface; the shift shows
+   in Map layers.
+4. The orthophoto in this phase.
+5. Remembered **per browser, per route** (localStorage, like the Relief and Lidar checkboxes); the route is unchanged.
+6. **No** AGL terrain from a task's DSM (the KMZ keeps lidar or COP30).
 
-**Open decisions (the user's):**
-1. Several tasks over the route: the newest automatically, or a choice in the layers panel.
-2. The task's orthophoto as the 3D view's photo over its DSM (it lines up with the ground; the satellite photo does not).
-3. Whether the AGL missions' terrain (Phase 14, lidar terrain) should also come from the task's DSM, here or later.
+**The design:**
+- `GET task-surfaces?bounds=w,s,e,n`: the compatible tasks, newest first (`tasks_overlapping`, like `tasks_covering`
+  with an overlap): `{id, project, name, dsm, orthophoto}`.
+- `POST task-surface {task}` queues cutting the task's DSM in WebODM's worker; `GET task-surface?task=` answers its
+  state (`queued`, `building`, `done`, `failed`), the version of its tiles, its shift and bounds;
+  `GET task-surface/<task>/tiles/<z>/<x>/<y>.png` its tiles. Every request checks the user can view the task's project.
+- Cut once per task into `mission_planner_data/tasks/<task id>/` (`task_surface.py`): Terrarium tiles at zooms 15-18
+  over the task's extent, RGBA, the alpha the task's weight (255 inside, falling to 0 over the last metres of its edge
+  and at its holes), heights shifted as decided. Cut again when the task's `dsm.tif` changes (its time recorded);
+  removed when the task is gone (checked whenever its folder is used and at listing).
+- The browser blends: `lidar_surface.js`'s loader takes the surface under a tile as now and, where the chosen task's
+  tiles are, mixes the task's heights by their alpha (both PNGs decoded in JS, no canvas read: Brave). The pointer,
+  collisions, margin and Relief read the same loader, so they follow. The picked task's version is in its tiles' URLs.
+- The orthophoto: a raster source of WebODM's own tile URL with the task's bounds, above the basemap, in 2D and 3D.
+- Zooms 15-18 as the lidar (about 0.6 m a pixel at 41 degrees); finer zooms for the task are a later step.
+
+**Failures and what happens** (the cut runs unattended in the worker):
+
+| Failure | What happens |
+|---|---|
+| The task deleted or reprocessed during the cut | The cut fails or is redone; a deleted task's folder removed |
+| `dsm.tif` missing or unreadable | State `failed` with the reason; the lidar or AWS shows |
+| AWS's tile (for the shift) unreachable, lidar not built | Shift from EGM96 alone, said in Map layers |
+| Disk full | State `failed` "the disk is full"; partial tiles removed |
+| Worker restarted mid-cut | A `building` state older than STALE_AFTER is queued again |
+| Two requests at once | A file lock claims the cut once (as the lidar units) |
+| The broker down | State `failed` saying so; asked again later |
+| The user loses access to the task | Its tiles answer 403; not listed |
+
+**Done when:** Django tests (each failure injected), Jest (the blend, the list, the remembered choice), Ruff, ESLint;
+live on RoofSampleRGB over m4t-test-poi-waypoint: the list, DSM on (the roof in 3D, the pointer's heights, no step at
+the edge), Orthophoto on in 2D and 3D, both, remembered after a reload, in Brave's noise patch too.
 
 ## Lidar regions: Phases 24-26 (planned 2026-11-20, kept for later)
 
