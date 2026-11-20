@@ -8,8 +8,15 @@ to its title.
 
 **Up next**
 
-Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views
-of the replaced commits, then make it public.
+1. **Phase 21: a faster 3D view** (the user, 2026-11-20): measure the 3D view's first and later loads, then make the
+   changes the measurements back. Not yet planned with the user; the candidates and open decisions are in the
+   "Phase 21" section.
+2. **Phase 22: a blocky 1 m surface** (the user, 2026-11-20, "let's discuss further"): buildings and trees drawn as
+   1 m blocks with the imagery on their tops, in place of today's smoothed mounds. To discuss: the options, what each
+   costs and what it breaks are in the "Phase 22" section.
+
+Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
+commits, then make it public.
 
 Listing in WebODM-Plugins (the user, 2026-11-20, after talking with WebODM's maintainer, who suggested it): from now
 on the last step of every release (CLAUDE.md, "Never push and never tag"): a branch in the user's fork of
@@ -34,9 +41,9 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    is in the Phase 5 section.
 2. **Mavic 3M multispectral** (the user, 2026-11-19: after 15b): the `narrow_band` lens as a third camera choice,
    once a real M3M file or a DJI source confirms its name and payload sub value.
-3. **Lidar regions, England and Canada** (planned 2026-11-20, kept for later by the user the same day): Phase 21
-   (the lidar made pluggable by region, the US its first), Phase 22 (the Environment Agency's 1 m surface, Tower
-   Bridge), Phase 23 (Natural Resources Canada's 1 m surface, Canmore; Lake Louise for the fallback). The design and
+3. **Lidar regions, England and Canada** (planned 2026-11-20, kept for later by the user the same day): Phase 23
+   (the lidar made pluggable by region, the US its first), Phase 24 (the Environment Agency's 1 m surface, Tower
+   Bridge), Phase 25 (Natural Resources Canada's 1 m surface, Canmore; Lake Louise for the fallback). The design and
    the vetting are in the "Lidar regions" section; vet the sources again before building.
 4. **Scotland, Wales and Northern Ireland** (the user, 2026-11-20: after England): each nation's lidar as a region,
    once its service is vetted (the Scottish Remote Sensing Portal, Natural Resources Wales through DataMapWales,
@@ -904,7 +911,83 @@ message shows, then hides once the map is drawn (screenshots of both); the conso
 **Decided with the user (2026-11-20):** the message goes in the existing status bar, not a separate spinner by the
 map's buttons.
 
-## Lidar regions: Phases 21-23 (planned 2026-11-20, kept for later)
+## Phase 21: a faster 3D view (requested 2026-11-20, to plan)
+
+The request (`new.md`, 2026-11-20): "Assess the view rendering code for performance improvements. Right now the
+first load is the worst as expected and the loading ui informs the user it's in progress." It builds on Phase 6 (the
+lidar surface, `lidar_surface.js`, `lidar.py`), Phase 20 (the "Loading elevation…" message, which also gives the
+measurement its end: the map's `idle`) and both editors' `showGround3d` (`planner.js`, `waypoint_planner.js`).
+
+**Measure first:** no candidate below is built until a baseline says it matters. A Playwright script (a live-check
+skill script) opens the area editor and a waypoint route at the Illinois sample. It switches to 3D and records the
+time to `idle`, the requests (count, bytes, which host) and a CPU profile. Each case is measured cold (fresh profile)
+and warm (second entry into 3D), lidar off and on (on over built units). The same script measures each change, before
+and after.
+
+**Candidates, found in the code (2026-11-20), not measured:**
+- **The ground is reloaded on every switch into 3D:** `showGround3d` removes `mp-dem` and adds it again, so
+  MapLibre drops the tiles it already decoded and fetches them again (from the browser's cache where it has them).
+  Keeping the source across 2D/3D switches (only `setTerrain` and the hillshade turned off and on) would make
+  the second entry immediate. A lidar on/off switch still changes the source.
+- **One finished unit reloads every tile:** each unit that finishes building bumps `?v=` in the tile URL
+  (`onTilesChanged`, `setTiles`), which reloads every elevation tile of the source, not only the finished unit's.
+  Whether MapLibre 6.16.0 can reload some tiles only is to be read in its source.
+- **AWS tiles above zoom 15 with the lidar on** (where no unit is built): each zoom-16 to 18 tile fetches its
+  zoom-15 parent again and decodes and re-encodes a PNG in the browser (`cropInBrowser`): up to 64 times per
+  parent at zoom 18. A small in-memory cache of decoded parents would do this once per parent. With the lidar off,
+  the source stops at zoom 15 and MapLibre enlarges the tiles itself.
+- **Lidar tiles go through Django,** one request each (`LidarTileView`, `private, max-age=3600`): the time per tile
+  on the server is to be measured.
+- **The hillshade** (`mp-hillshade`) is computed on the GPU from the same tiles: its share of the frame time is
+  to be measured.
+- **Loading the ground while in 2D**, so that the first switch into 3D finds it ready: faster, but it downloads
+  elevation for users who never open 3D (a decision for the user, below).
+
+**Open decisions** (asked once the baseline is in): which loads matter most (the first entry into 3D, a pan in 3D,
+switching back and forth); whether the ground may load in 2D before it is shown; a target, if the user has one.
+
+## Phase 22: a blocky 1 m surface (requested 2026-11-20, to discuss)
+
+The request (`new.md`, 2026-11-20): "Would the buildings, trees and such look less stretched and blurred if instead
+of being drawn as round stretched image splotches along the curved height, the image was drawn in 1m square block
+increments where the once stretched image can span or repeat across the flat surfaces instead. Somewhat comparable to
+how the world looks in minecraft on the exterior. Let's discuss further." It builds on Phase 6 (the lidar surface) and
+touches everything that reads the 3D ground: drawing and editing in 3D (Phase 9: clicks land on MapLibre's terrain
+through `map.unproject`), collisions (Phases 10 and 11), the pointer's height (Phase 7) and the Pointer tool (Phase 13).
+
+**Why it looks the way it does (read in the code, 2026-11-20):**
+- MapLibre draws the terrain as one mesh of 128 x 128 cells per tile (`render/terrain.ts`, `meshSize = 128`), with
+  the heights between vertices interpolated. A wall becomes a slope from one vertex to the next. On a zoom-18 tile
+  (about 115 m a side at 41 N) a cell is about 0.9 m. Tiles farther from the camera are drawn at lower zooms (3.6 m
+  cells at 16, 7 m at 15), where buildings become mounds. Which zooms a typical view draws is not yet measured.
+- `make_tiles` (`lidar.py`) resamples the 1 m DSM bilinearly at the zooms finer than 1 m, which softens edges further.
+- The basemap is draped from above: a wall has no imagery of its own, so the few pixels at a roof's edge are stretched
+  down it. Satellite imagery is also seldom true-ortho: a tall building's roof sits offset from its footprint, so
+  blocks and imagery will not line up exactly whatever is drawn (not measured here).
+
+**Options:**
+- **A. Steps in the existing terrain** (small): nearest-neighbour in place of bilinear in `make_tiles`, nothing else
+  changed. Walls get steeper where the mesh is fine (near the camera), and are still a cell wide; everything
+  that reads the ground keeps working. A cheap way to see how much of the blur this removes.
+- **B. Blocks as a custom WebGL layer** (large): MapLibre's `CustomLayerInterface` draws boxes built from the 1 m
+  DSM (equal neighbours merged), their tops textured with the basemap's tiles, walls with the edge pixel repeated
+  or a flat shade, over the bare ground's terrain. The Minecraft look. Own shaders. Clicks, collisions and the
+  pointer's height would have to read the blocks, since `map.unproject` only knows MapLibre's terrain. About a
+  million cells per square km before merging, so it works against Phase 21.
+- **C. `fill-extrusion` of height steps** (medium): MapLibre's own extrusions, one polygon per run of equal height,
+  one colour each, sampled from the imagery. No texture: a coloured voxel look, not the imagery. Same picking issue as B.
+- **D. Buildings from OpenStreetMap as extrusions** (medium): footprints from OSM, heights from the lidar, crisp
+  walls at the real outlines; trees and the ground stay on the terrain. Not blocks, but straight walls where
+  they matter most; OSM's footprints are incomplete in places.
+
+**Proposed:** a short spike of A with before and after screenshots at the Illinois sample. Then decide with the user
+between stopping there, B and D, from the pictures.
+
+**To discuss:** the look wanted (blocks everywhere, or straight walls on buildings only); walls with the imagery
+repeated, or a flat shade; whether drawing and editing in 3D must work on the blocks (Phase 9 says it does today);
+how much load time the look may cost (Phase 21).
+
+## Lidar regions: Phases 23-25 (planned 2026-11-20, kept for later)
 
 The request (the user, 2026-11-20): USGS lidar covers only the US; add Canada and the UK, as pluggable regions so
 that more can be added. Samples: Tower Bridge (London) for the UK, the Lake Louise area for Canada.
@@ -928,7 +1011,7 @@ AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` 
   NONE, no key; Open Government Licence (attribution: Environment Agency copyright). GetCoverage with `subset=E(..)`
   and `subset=N(..)` in EPSG:27700 returned a 1 m float32 GeoTIFF, EPSG:27700, nodata -3.4e38, in about 1.3 s for
   200 x 200 m. Tower Bridge (250 x 350 m): every cell set, 1.9 to 70.5 m (the towers). Heights ODN (from training
-  knowledge: to check in Phase 22's first step). Older composites (2017, 2020) were retired from the same platform:
+  knowledge: to check in Phase 24's first step). Older composites (2017, 2020) were retired from the same platform:
   the coverage id may change with a new composite. Not checked: the largest size a request accepts, any rate limit.
 - **Canada**: Natural Resources Canada's HRDEM Mosaic 1m (CanElevation), DSM and DTM as cloud-optimized GeoTIFFs in
   the public AWS bucket `canelevation-dem` (ca-central-1), one 500 km tile per item in the STAC API
@@ -978,10 +1061,10 @@ AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` 
 - **Fixtures**: small DSM cuts saved from the live services (Tower Bridge, Canmore, an empty Lake Louise answer),
   a few hundred KB each, kept under `tests/fixtures/lidar/<region>/`. These are public landmarks chosen by the user,
   not places anyone flew: the rule in CLAUDE.md that moves fixtures off real places is about flight samples, and its
-  wording is made to say so in Phase 22. No live service is called by the tests (`tests/__init__.py` refuses it, as
+  wording is made to say so in Phase 24. No live service is called by the tests (`tests/__init__.py` refuses it, as
   it refuses the lidar builds).
 
-**Phase 21: lidar regions** (US only; no visible change but reasons' wording)
+**Phase 23: lidar regions** (US only; no visible change but reasons' wording)
 1. `regions.json` with the US entry; `missions/regions.py` (read, check, `region_for(unit)`, the kinds' registry);
    `lidar.build_unit` asks the unit's region to make its DSM and records the region; `ept` kind from today's code;
    `geoid.shift` from `navd88_shift`; `lidar_terrain` per unit's region, `in_conus` replaced by the regions' boxes.
@@ -991,7 +1074,7 @@ AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` 
    Illinois sample, and Paris still says no lidar.
 3. Docs: CLAUDE.md (regions.json beside drones.json), README (wording only).
 
-**Phase 22: England** (the `wcs` kind)
+**Phase 24: England** (the `wcs` kind)
 1. Capture first: Tower Bridge's GetCoverage for a whole unit with its overlap (the size and time), the largest
    request accepted, the error document for a bad request and for a point outside England (sea off Kent), the PROJ
    pipeline for EPSG:27700+5701 to EPSG:4979 with OSTN15 and OSGM15 (and its result at Tower Bridge against OS's own
@@ -1003,7 +1086,7 @@ AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` 
    KMZ's DSM; a route over the Channel says no lidar. About 2 OpenTopography calls (COP30 for the fallback).
 4. CLAUDE.md's fixture rule says it is about flight samples; README; CHANGELOG (Unreleased).
 
-**Phase 23: Canada** (the `stac-cog` kind)
+**Phase 25: Canada** (the `stac-cog` kind)
 1. Capture first: the STAC answer and a unit's window at Canmore, the answer at Lake Louise (an item whose window is
    all nodata), the PROJ pipeline for EPSG:3979 + CGVD2013 to EPSG:4979 (CGG2013a, and NAD83(CSRS) to WGS84 at the
    current epoch, as GEOID18's Helmert step), checked against NRCan's GPS-H at a point if it answers.
