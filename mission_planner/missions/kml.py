@@ -17,7 +17,7 @@ import zipfile
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
-from .kmz_import import MAX_NAME, MAX_TEMPLATE_SIZE, MAX_VERTICES, KmzImportError
+from .kmz_import import MAX_NAME, MAX_TEMPLATE_SIZE, MAX_VERTICES, KmzImportError, read_entry
 from .linear import MAX_POINTS
 
 KML_NS = "http://www.opengis.net/kml/2.2"
@@ -46,7 +46,7 @@ def _document(data):
                 name = "doc.kml" if "doc.kml" in kmls else kmls[0]
                 if z.getinfo(name).file_size > MAX_TEMPLATE_SIZE:
                     raise KmzImportError("The KML file is too large")
-                data = z.read(name)
+                data = read_entry(z, name)
         except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError):
             raise KmzImportError("This is not a .kmz file (not a zip archive)")
     elif len(data) > MAX_TEMPLATE_SIZE:

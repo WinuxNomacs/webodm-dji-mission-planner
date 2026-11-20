@@ -21,6 +21,7 @@ import math
 import os
 import re
 import zipfile
+import zlib
 from xml.etree import ElementTree as ET
 
 import rasterio
@@ -158,6 +159,19 @@ def blank(v):
     return "" if v is None else form_number(v)
 
 
+# What reading an entry of a damaged or encrypted zip raises: a failed CRC or a short file, a password needed, a
+# compression method Python does not have (AES), a broken deflate stream
+ZIP_READ_ERRORS = (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, RuntimeError, NotImplementedError, zlib.error)
+
+
+def read_entry(z, name):
+    """The bytes of an entry of an open zip; KmzImportError when it cannot be read"""
+    try:
+        return z.read(name)
+    except ZIP_READ_ERRORS:
+        raise KmzImportError("%s in the file cannot be read (the file is damaged or encrypted)" % name)
+
+
 def read_template(data):
     """(root, names): the template's XML and the names of the files in the .kmz; KmzImportError when it has none
     that reads. Read once by an import and handed to read_kmz_route and read_kmz_dsm."""
@@ -168,7 +182,7 @@ def read_template(data):
                 raise KmzImportError("This is not a Pilot 2 mission file: it has no %s" % TEMPLATE)
             if z.getinfo(TEMPLATE).file_size > MAX_TEMPLATE_SIZE:
                 raise KmzImportError("The mission file is too large")
-            template = z.read(TEMPLATE)
+            template = read_entry(z, TEMPLATE)
     except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError):
         raise KmzImportError("This is not a .kmz file (not a zip archive)")
     try:
@@ -920,10 +934,13 @@ def read_kmz_dsm(data, template=None):
     path = dsm_file(folder, names) if folder is not None else None
     if path is None:
         return None
-    with zipfile.ZipFile(io.BytesIO(data)) as z:
-        if z.getinfo(path).file_size > MAX_DSM_SIZE:
-            raise KmzImportError("The elevation model (DSM) in the file is too large")
-        tif = z.read(path)
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            if z.getinfo(path).file_size > MAX_DSM_SIZE:
+                raise KmzImportError("The elevation model (DSM) in the file is too large")
+            tif = read_entry(z, path)
+    except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError):
+        raise KmzImportError("This is not a .kmz file (not a zip archive)")
     try:
         with MemoryFile(tif) as f, f.open() as src:
             if src.crs is None or src.crs.to_epsg() != 4326:

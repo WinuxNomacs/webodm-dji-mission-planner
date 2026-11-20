@@ -78,6 +78,9 @@ class TestReading(SimpleTestCase):
             (b'<?xml version="1.0"?><!DOCTYPE kml [<!ENTITY a "b">]><kml>&a;</kml>', "not valid XML"),
             (b"<kml><Document>", "not valid XML"),
             (kmz(b"x", name="notes.txt"), "holds no .kml"),
+            (area_kmz.damaged(kmz(document(LINE)), flags=1), "cannot be read"),
+            (area_kmz.damaged(kmz(document(LINE)), method=99), "cannot be read"),
+            (area_kmz.damaged(kmz(document(LINE)), corrupt="doc.kml"), "cannot be read"),
         ]
         for data, message in cases:
             with self.subTest(message=message):
