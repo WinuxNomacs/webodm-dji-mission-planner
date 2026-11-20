@@ -8,7 +8,15 @@ to its title.
 
 **Up next**
 
-1. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
+1. **Open: lidar terrain lifts a small AGL route over one building** (found 2026-11-20 on TestAreaRoute, the user to
+   decide): each waypoint flies the height above the highest ground within `terrain.RADIUS` (50 m, fitted against
+   Pilot 2 over a smooth 30 m terrain) of it, in the export (`wpml.dsm_of`) and the 3D view (`air._over_terrain`) alike.
+   On the lidar terrain (10 m, roofs and trees) a route about 56 m across is all within 50 m of a 33 m roof, so it flies
+   33 m higher than planned everywhere, its photos at twice the GSD. Options: a smaller radius for lidar terrain only
+   (10-15 m, recommended), a per-route clearance setting, or 50 m kept with a plainer warning. With it, a small fix: the
+   lidar tiles' URL does not change when a unit is rebuilt, and the browser and the page's reader keep them (an hour,
+   `Cache-Control`; no version), so a tab open across a rebuild reads the old surface.
+2. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
    where a processed task the user can see covers the route, the 3D view's ground is that task's DSM instead of the
    lidar, so the ground is as new as the last flight and at the task's detail. To plan with the user; the
    proposed design and open decisions are in the "Phase 23" section.
@@ -48,6 +56,12 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
 **Done**
+- **Bug: false collisions in Brave** (2026-11-20, `fix-canvas-noise`): Brave's fingerprinting protection alters a few
+  pixels of every canvas read by one; a red one higher is 256 m in Terrarium, and Phase 22's band takes the highest pixel
+  along the route, so TestAreaRoute showed 10 collisions 38 m above everything (Firefox and Chromium were right).
+  `pointer_height.js` now decodes the tiles' PNG itself (`decodePng`: 8-bit RGB or RGBA, the five filters, inflated by
+  the browser's `DecompressionStream`), the canvas kept only for other PNGs, images and browsers without it. Tests in
+  `pointer_height.test.js` (3; the noisy canvas seen failing first); checked in Chromium with the noise injected.
 - **Bug: the Esri basemap is blank over http** (2026-11-20, `fix-basemap-https`): `planner_core.js` (`withProtocol`,
   `localHost`; `basemapSource` takes the page's location): URLs starting `//` load over https, but the page's own host and
   local addresses keep its http. Esri's and OpenStreetMap's http answers are 301s to https without

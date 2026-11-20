@@ -249,3 +249,74 @@ describe("the highest surface near each piece of a route (collisions with a marg
         expect(await reader.bandMaxes([piece(at(0, 0), at(20, 0))], 2)).toEqual([null]);
     });
 });
+
+// A PNG of the given RGB or RGBA pixels (256 x 256), each row filtered with the next of PNG's five filters, as an encoder may
+function png(rgba, channels, header) {
+    const zlib = require('zlib'), W = 256, stride = W * channels, rows = [];
+    const raw = y => { const r = Buffer.alloc(stride); for (let x = 0; x < W; x++) for (let c = 0; c < channels; c++) r[x * channels + c] = rgba[(y * W + x) * 4 + c]; return r; };
+    const paeth = (a, b, c) => { const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c); return pa <= pb && pa <= pc ? a : pb <= pc ? b : c; };
+    let prev = Buffer.alloc(stride);
+    for (let y = 0; y < W; y++) {
+        const cur = raw(y), f = y % 5, out = Buffer.alloc(stride + 1);
+        out[0] = f;
+        for (let x = 0; x < stride; x++) {
+            const a = x >= channels ? cur[x - channels] : 0, b = prev[x], c = x >= channels ? prev[x - channels] : 0;
+            const pred = [0, a, b, (a + b) >> 1, paeth(a, b, c)][f];
+            out[x + 1] = (cur[x] - pred) & 255;
+        }
+        rows.push(out);
+        prev = cur;
+    }
+    const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); return Buffer.concat([len, Buffer.from(type), data, Buffer.alloc(4)]); };
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(W, 4);
+    ihdr[8] = (header && header.depth) || 8; ihdr[9] = (header && header.color) || (channels === 4 ? 6 : 2); ihdr[12] = (header && header.interlace) || 0;
+    const z = zlib.deflateSync(Buffer.concat(rows));
+    const bytes = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', z.subarray(0, 1000)), chunk('IDAT', z.subarray(1000)), chunk('IEND', Buffer.alloc(0))]);
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length);
+}
+const inflate = bytes => Promise.resolve(new Uint8Array(require('zlib').inflateSync(Buffer.from(bytes))));
+// A tile with heights that change from pixel to pixel, so that every filter has something to predict
+function varied() {
+    const rgba = tile(200);
+    for (let i = 0; i < 256 * 256; i++) { const v = 200 + (i * 37 % 5000) / 100 + 32768; rgba[i * 4] = Math.floor(v / 256); rgba[i * 4 + 1] = Math.floor(v) % 256; rgba[i * 4 + 2] = (i * 13) % 256; }
+    return rgba;
+}
+
+describe("tiles decoded without a canvas", () => {
+    it("give back every pixel of an RGB or an RGBA PNG, whatever the rows' filters", async () => {
+        const rgba = varied();
+        expect(await P.decodePng(png(rgba, 3), inflate)).toEqual(rgba);
+        const alpha = rgba.slice();
+        for (let i = 3; i < alpha.length; i += 4) alpha[i] = i % 251;
+        expect(await P.decodePng(png(alpha, 4), inflate)).toEqual(alpha);
+    });
+
+    it("refuse what is not an 8-bit RGB or RGBA PNG, not interlaced", async () => {
+        const rgba = varied();
+        await expect(P.decodePng(png(rgba, 3, {interlace: 1}), inflate)).rejects.toThrow();
+        await expect(P.decodePng(png(rgba, 3, {depth: 16}), inflate)).rejects.toThrow();
+        await expect(P.decodePng(png(rgba, 3, {color: 3}), inflate)).rejects.toThrow();
+        await expect(P.decodePng(new ArrayBuffer(40), inflate)).rejects.toThrow();
+    });
+
+    it("keep their heights in a browser whose canvas alters a few pixels (Brave's fingerprinting protection)", async () => {
+        const rgba = varied(), saved = {};
+        ['createImageBitmap', 'OffscreenCanvas', 'DecompressionStream'].forEach(k => { saved[k] = window[k]; });
+        window.createImageBitmap = () => Promise.resolve({close() {}});
+        window.OffscreenCanvas = class { getContext() { return {drawImage() {}, getImageData() {
+            const data = rgba.slice();
+            for (let i = 0; i < 400; i += 4) data[i * 97] += 1;                      // the red of a few pixels one higher: 256 m
+            return {data};
+        }}; } };
+        window.DecompressionStream = require('stream/web').DecompressionStream;
+        try {
+            const got = await P.decodeInBrowser(png(rgba, 3));
+            let worst = 0;
+            for (let px = 0; px < 256; px++) for (let py = 0; py < 256; py++) worst = Math.max(worst, Math.abs(P.decodePixel(got, px, py) - P.decodePixel(rgba, px, py)));
+            expect(worst).toBe(0);
+        } finally {
+            Object.keys(saved).forEach(k => { window[k] = saved[k]; });
+        }
+    });
+});

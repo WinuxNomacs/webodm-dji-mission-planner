@@ -1,3 +1,4 @@
+/* global Uint8Array, Uint8ClampedArray, DataView */
 // The height under the pointer on the editors' map: a small tooltip beside the pointer, in 2D and 3D, with the height
 // above sea level ("216.2 m ASL") of the surface right under it (over the route's line, also the route's height
 // above it there: "216.2 m ASL, route 38.0 m above"), read from the same Terrarium tiles the 3D view raises the ground
@@ -39,10 +40,94 @@
         return system === "imperial" ? Math.round(meters * M_TO_FT) + " ft" : meters.toFixed(1) + " m";
     }
 
-    // A tile's PNG bytes, or its image (a tile cut from AWS's zoom 15: lidar_surface.js), as RGBA pixels (256 x 256 x 4).
-    // The browser's version; the tests pass their own.
+    // A PNG's bytes (8-bit RGB or RGBA, not interlaced, 256 x 256: the lidar surface's tiles and AWS's) as RGBA pixels,
+    // decoded here rather than through a canvas: a browser may alter what a canvas gives back (Brave's fingerprinting
+    // protection changes a few pixels by one), and a red one higher is 256 m higher in Terrarium, which the collision
+    // check, taking the highest pixel along the route, then finds. inflate(bytes) -> Promise<Uint8Array> (zlib).
+    function decodePng(buffer, inflate) {
+        var b = new Uint8Array(buffer), view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+        var signature = [137, 80, 78, 71, 13, 10, 26, 10], channels = 0, width = 0, height = 0, parts = [], size = 0, at = 8;
+        for (var s = 0; s < 8; s++) if (b[s] !== signature[s]) return Promise.reject(new Error("Not a PNG"));
+        while (at + 8 <= b.length) {
+            var length = view.getUint32(at), data = at + 8;
+            var type = String.fromCharCode(b[at + 4], b[at + 5], b[at + 6], b[at + 7]);
+            if (data + length > b.length) return Promise.reject(new Error("PNG cut short"));
+            if (type === "IHDR") {
+                width = view.getUint32(data);
+                height = view.getUint32(data + 4);
+                channels = b[data + 9] === 2 ? 3 : b[data + 9] === 6 ? 4 : 0;
+                if (b[data + 8] !== 8 || b[data + 12] !== 0) channels = 0;
+                if (!channels) return Promise.reject(new Error("A PNG format not read here"));
+            } else if (type === "IDAT") {
+                parts.push(b.subarray(data, data + length));
+                size += length;
+            } else if (type === "IEND") {
+                break;
+            }
+            at = data + length + 4;
+        }
+        if (!channels || width !== TILE || height !== TILE || !size) return Promise.reject(new Error("Not a tile"));
+        var packed = new Uint8Array(size), offset = 0;
+        parts.forEach(function (part) { packed.set(part, offset); offset += part.length; });
+        return inflate(packed).then(function (raw) { return unfilter(raw, channels); });
+    }
+
+    // The PNG's rows, each after its filter byte, as RGBA pixels
+    function unfilter(raw, channels) {
+        var stride = TILE * channels, out = new Uint8ClampedArray(TILE * TILE * 4);
+        var prev = new Uint8Array(stride), cur = new Uint8Array(stride);
+        if (raw.length < TILE * (stride + 1)) throw new Error("PNG cut short");
+        for (var y = 0; y < TILE; y++) {
+            var start = y * (stride + 1), filter = raw[start];
+            for (var x = 0; x < stride; x++) {
+                var a = x >= channels ? cur[x - channels] : 0, up = prev[x], c = x >= channels ? prev[x - channels] : 0, v = raw[start + 1 + x];
+                if (filter === 1) v += a;
+                else if (filter === 2) v += up;
+                else if (filter === 3) v += (a + up) >> 1;
+                else if (filter === 4) {
+                    var p = a + up - c, pa = Math.abs(p - a), pb = Math.abs(p - up), pc = Math.abs(p - c);
+                    v += pa <= pb && pa <= pc ? a : pb <= pc ? up : c;
+                } else if (filter !== 0) throw new Error("A PNG filter not read here");
+                cur[x] = v & 255;
+            }
+            for (var i = 0; i < TILE; i++) {
+                var o = (y * TILE + i) * 4, q = i * channels;
+                out[o] = cur[q]; out[o + 1] = cur[q + 1]; out[o + 2] = cur[q + 2]; out[o + 3] = channels === 4 ? cur[q + 3] : 255;
+            }
+            var swap = prev; prev = cur; cur = swap;
+        }
+        return out;
+    }
+
+    // zlib bytes inflated with the browser's DecompressionStream
+    function inflateInBrowser(bytes) {
+        var stream = new root.DecompressionStream("deflate"), writer = stream.writable.getWriter(), reader = stream.readable.getReader();
+        var chunks = [], total = 0;
+        writer.write(bytes).catch(function () { /* the reader says so */ });
+        writer.close().catch(function () { /* the reader says so */ });
+        function next() {
+            return reader.read().then(function (r) {
+                if (!r.done) { chunks.push(r.value); total += r.value.length; return next(); }
+                var out = new Uint8Array(total), offset = 0;
+                chunks.forEach(function (chunk) { out.set(chunk, offset); offset += chunk.length; });
+                return out;
+            });
+        }
+        return next();
+    }
+
+    // A tile's PNG bytes, or its image (a tile cut from AWS's zoom 15: lidar_surface.js), as RGBA pixels (256 x 256 x 4):
+    // the bytes decoded by decodePng, through a canvas only where the browser has no DecompressionStream or the PNG is
+    // of another kind, and for an image. The browser's version; the tests pass their own.
     function decodeInBrowser(buffer) {
         var isImage = typeof root.ImageBitmap === "function" && buffer instanceof root.ImageBitmap;
+        if (!isImage && typeof root.DecompressionStream === "function") {
+            return decodePng(buffer, inflateInBrowser).catch(function () { return decodeOnCanvas(buffer, false); });
+        }
+        return decodeOnCanvas(buffer, isImage);
+    }
+
+    function decodeOnCanvas(buffer, isImage) {
         var image = isImage ? Promise.resolve(buffer)
             : root.createImageBitmap(new root.Blob([buffer], {type: "image/png"}), {colorSpaceConversion: "none", premultiplyAlpha: "none"});
         return image.then(function (image) {
@@ -217,7 +302,8 @@
     }
 
     var api = {createHeightReader: createHeightReader, createPointerTooltip: createPointerTooltip, tileAt: tileAt,
-               decodePixel: decodePixel, formatHeight: formatHeight, tooltipText: tooltipText};
+               decodePixel: decodePixel, formatHeight: formatHeight, tooltipText: tooltipText, decodeInBrowser: decodeInBrowser,
+               decodePng: decodePng};
     root.MissionPlannerPointerHeight = api;
     if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : {});
