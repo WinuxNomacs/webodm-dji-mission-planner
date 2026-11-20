@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Esri's satellite basemap and OpenStreetMap show on a WebODM served over plain http: basemap URLs starting `//`
+  load over https (their http answers are redirects the browser refuses), except the instance's own server and local
+  addresses.
 - The 3D view says "Loading elevation…" while the ground is still loading and being drawn (after switching to 3D,
   turning the lidar surface on or off, panning or zooming).
 - With the lidar surface on, the 3D view no longer encodes a PNG in the browser for each close-up tile outside the

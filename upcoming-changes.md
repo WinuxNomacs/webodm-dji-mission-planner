@@ -8,13 +8,7 @@ to its title.
 
 **Up next**
 
-1. **Bug: the Esri basemap is blank over http** (found 2026-11-20 in Phase 22's live check): the editors give a basemap
-   URL starting `//` the page's protocol (`Core.basemapSource`); on a WebODM served over plain http (the dev stack, many
-   home and office installs) Esri's `http://server.arcgisonline.com` answers 301 to https without
-   `Access-Control-Allow-Origin`, so MapLibre's fetch is refused and every tile fails (checked with curl: https answers
-   200 with `Access-Control-Allow-Origin: *`). To check which of WebODM's basemaps serve https, then load those over
-   https whatever the page's protocol.
-2. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
+1. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
    where a processed task the user can see covers the route, the 3D view's ground is that task's DSM instead of the
    lidar, so the ground is as new as the last flight and at the task's detail. To plan with the user; the
    proposed design and open decisions are in the "Phase 23" section.
@@ -54,6 +48,11 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
 **Done**
+- **Bug: the Esri basemap is blank over http** (2026-11-20, `fix-basemap-https`): `planner_core.js` (`withProtocol`,
+  `localHost`; `basemapSource` takes the page's location): URLs starting `//` load over https, but the page's own host and
+  local addresses keep its http. Esri's and OpenStreetMap's http answers are 301s to https without
+  `Access-Control-Allow-Origin` (Google's http works; all three allow any origin over https, curl 2026-11-20). Tests in
+  `planner_core.test.js`; checked live on :8009 (http): every default basemap in both editors, all tiles https 200.
 - **Phase 22: a sharper 3D ground** (2026-11-20, `phase-22-sharper-ground`): `lidar.py` (each point in its own cell,
   far tiles averaged, `SURFACE_VERSION`), `pointer_height.js` (`bandMaxes`), `route_3d.js` (collisions with a margin),
   the "Collision margin" field (both editors' Advanced settings), `relief.js` and the layers panel's "Relief (3D)".
