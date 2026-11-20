@@ -66,6 +66,8 @@ OVERLAP = 40.0              # meters of lidar read around a unit, so that its ed
 FEATHER = 40.0              # meters over which lidar fades into AWS's terrain
 READ_RESOLUTION = 1.0       # meters on the ground: the EPT's detail read (101 MB a km2 measured, 2026-11-18)
 CELL = 1.0                  # meters on the ground: the DSM's cells
+SURFACE_VERSION = 2         # how the units' DSM and tiles are made; a unit built by an older one is built again once
+                            # (2: each point counts in its own cell only, and far tiles average, Phase 22)
 NOISE_CLASSES = (7, 18)     # ASPRS low and high noise
 # A unit's heights are taken as NAVD88 meters (what lidar_terrain.py converts) only when its lowest lidar lies within
 # DATUM_TOLERANCE of AWS's bare-ground tile (NAVD88 in the US, as the spike measured): the EPT says nothing of its
@@ -204,7 +206,8 @@ def read_state(unit):
 
 
 def write_state(unit, state, message=""):
-    _write_json(os.path.join(unit_folder(unit), "status.json"), {"state": state, "time": time.time(), "message": message})
+    _write_json(os.path.join(unit_folder(unit), "status.json"),
+                {"state": state, "time": time.time(), "message": message, "version": SURFACE_VERSION})
 
 
 def _needs_build(st, now):
@@ -214,6 +217,8 @@ def _needs_build(st, now):
         return now - st["time"] > RETRY_AFTER
     if st["state"] in ("queued", "building"):
         return now - st["time"] > STALE_AFTER
+    if st["state"] == "done":
+        return st.get("version", 1) < SURFACE_VERSION
     return False
 
 
@@ -415,7 +420,10 @@ def dsm_pipeline(url, unit, out):
         {"type": "readers.ept", "filename": url, "resolution": READ_RESOLUTION * k,
          "bounds": "([%.3f, %.3f], [%.3f, %.3f])" % (left - o, left - o + n * cell, top + o - n * cell, top + o)},
         {"type": "filters.range", "limits": ",".join("Classification![%d:%d]" % (c, c) for c in NOISE_CLASSES)},
-        {"type": "writers.gdal", "filename": out, "output_type": "max", "resolution": cell, "window_size": 3,
+        # radius: half a cell's diagonal, each point in its own cell (PDAL's default, the cell times the square root of
+        # two, spreads a roof's height into every cell round it, about 1.4 m beyond its walls); window_size fills the
+        # cells left empty
+        {"type": "writers.gdal", "filename": out, "output_type": "max", "resolution": cell, "radius": cell * math.sqrt(2) / 2, "window_size": 3,
          "nodata": -9999, "data_type": "float32", "gdaldriver": "GTiff", "gdalopts": "COMPRESS=DEFLATE,PREDICTOR=3",
          "origin_x": left - o, "origin_y": top + o - n * cell, "width": n, "height": n, "override_srs": "EPSG:3857"},
     ]
@@ -593,7 +601,7 @@ def make_tiles(unit):
                         w = np.zeros((256, 256))
                         ground = np.zeros((256, 256))
                         reproject(dsm, lidar, src_transform=transform, src_crs=crs, dst_transform=t, dst_crs=crs,
-                                  resampling=Resampling.bilinear if fine else Resampling.max)
+                                  resampling=Resampling.bilinear if fine else Resampling.average)
                         reproject(weight, w, src_transform=transform, src_crs=crs, dst_transform=t, dst_crs=crs,
                                   resampling=Resampling.bilinear if fine else Resampling.min)
                         reproject(aws, ground, src_transform=aws_transform, src_crs=crs, dst_transform=t, dst_crs=crs,

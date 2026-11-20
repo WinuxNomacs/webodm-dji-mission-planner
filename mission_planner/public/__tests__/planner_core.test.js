@@ -3,6 +3,19 @@ const Core = require('../planner_core');
 const form = over => Object.assign({}, Core.DEFAULTS, over);
 const SQUARE = [[-85.020728, 42.1030], [-85.019928, 42.1030], [-85.019928, 42.1036], [-85.020728, 42.1036]];
 
+describe("the collision margin", () => {
+    it("is the form's meters, or 2 m when blank or out of range", () => {
+        expect(Core.collisionMargin("3.5")).toBe(3.5);
+        expect(Core.collisionMargin("0")).toBe(0);
+        expect(Core.collisionMargin("")).toBe(2);
+        expect(Core.collisionMargin(undefined)).toBe(2);
+        expect(Core.collisionMargin("-1")).toBe(2);
+        expect(Core.collisionMargin("101")).toBe(2);
+        expect(Core.DEFAULTS.collision_margin).toBe("2");
+        expect(Core.WAYPOINT_DEFAULTS.collision_margin).toBe("2");
+    });
+});
+
 describe("parseForm", () => {
     it("accepts the defaults", () => {
         const r = Core.parseForm(Core.DEFAULTS);

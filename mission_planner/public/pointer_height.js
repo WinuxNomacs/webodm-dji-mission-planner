@@ -15,6 +15,20 @@
         return {x: x, y: y, px: Math.min(Math.floor((fx - x) * TILE), TILE - 1), py: Math.min(Math.floor((fy - y) * TILE), TILE - 1)};
     }
 
+    // A point's position in pixels of the whole world at zoom z, as tileAt reckons it (not rounded)
+    function worldPixel(lng, lat, z) {
+        var n = Math.pow(2, z) * TILE, s = Math.sin(Math.max(Math.min(lat, 85), -85) * Math.PI / 180);
+        return [(lng + 180) / 360 * n, (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n];
+    }
+
+    // The distance from (x, y) to the segment from a to b, in the same units
+    function toSegment(x, y, a, b) {
+        var dx = b[0] - a[0], dy = b[1] - a[1], len = dx * dx + dy * dy;
+        var t = len ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / len)) : 0;
+        var ex = a[0] + t * dx - x, ey = a[1] + t * dy - y;
+        return Math.sqrt(ex * ex + ey * ey);
+    }
+
     // A Terrarium pixel's height (meters): red * 256 + green + blue / 256 - 32768
     function decodePixel(rgba, px, py) {
         var i = (py * TILE + px) * 4;
@@ -98,7 +112,64 @@
             return Promise.all(workers).then(function () { return out; });
         }
 
-        return {heightAt: heightAt, heightsAt: heightsAt};
+        // The highest surface within `radius` meters of each piece of a route ([lngA, latA, lngB, latB]), along its
+        // whole length (route_3d.js's collisions with a margin): the lidar's zoom-18 pixels where the unit is built, else
+        // AWS's zoom-15 pixels; a pixel counts when its centre is within the radius and half its diagonal of the piece.
+        // Read tile by tile, AT_ONCE at a time, each tile once for all its pieces; null for a piece none of whose
+        // tiles loaded. Promise<[meters or null, ...]>
+        function bandMaxes(segments, radius) {
+            var out = segments.map(function () { return null; }), groups = {}, keys = [], pieces = [];
+            var per = Math.pow(2, LIDAR_ZOOM - UNIT_ZOOM);              // zoom-18 tiles across a unit
+            function add(z, x, y, i) {
+                var key = z + "/" + x + "/" + y;
+                if (!groups[key]) { groups[key] = {z: z, x: x, y: y, items: []}; keys.push(key); }
+                groups[key].items.push(i);
+            }
+            segments.forEach(function (s, i) {
+                var a = worldPixel(s[0], s[1], LIDAR_ZOOM), b = worldPixel(s[2], s[3], LIDAR_ZOOM);
+                var mpp = 40075016.686 * Math.cos((s[1] + s[3]) / 2 * Math.PI / 180) / (TILE * Math.pow(2, LIDAR_ZOOM));
+                var r = Math.max(radius, 0) / mpp;                       // the radius in zoom-18 pixels
+                pieces.push({a: a, b: b, r: r});
+                var x0 = Math.floor((Math.min(a[0], b[0]) - r - 1) / TILE), x1 = Math.floor((Math.max(a[0], b[0]) + r + 1) / TILE);
+                var y0 = Math.floor((Math.min(a[1], b[1]) - r - 1) / TILE), y1 = Math.floor((Math.max(a[1], b[1]) + r + 1) / TILE);
+                for (var ux = Math.floor(x0 / per); ux <= Math.floor(x1 / per); ux++) {
+                    for (var uy = Math.floor(y0 / per); uy <= Math.floor(y1 / per); uy++) {
+                        if (!opts.isBuilt(ux, uy)) { add(UNIT_ZOOM, ux, uy, i); continue; }
+                        for (var tx = Math.max(x0, ux * per); tx <= Math.min(x1, ux * per + per - 1); tx++) {
+                            for (var ty = Math.max(y0, uy * per); ty <= Math.min(y1, uy * per + per - 1); ty++) add(LIDAR_ZOOM, tx, ty, i);
+                        }
+                    }
+                }
+            });
+            // The piece's highest pixel in one tile, in that tile's zoom (a zoom-15 pixel is 8 zoom-18 pixels across)
+            function scan(g, rgba, i) {
+                var f = Math.pow(2, LIDAR_ZOOM - g.z), p = pieces[i];
+                var a = [p.a[0] / f, p.a[1] / f], b = [p.b[0] / f, p.b[1] / f], reach = p.r / f + Math.SQRT1_2;
+                var ox = g.x * TILE, oy = g.y * TILE;
+                var px0 = Math.max(0, Math.floor(Math.min(a[0], b[0]) - reach) - ox), px1 = Math.min(TILE - 1, Math.floor(Math.max(a[0], b[0]) + reach) - ox);
+                var py0 = Math.max(0, Math.floor(Math.min(a[1], b[1]) - reach) - oy), py1 = Math.min(TILE - 1, Math.floor(Math.max(a[1], b[1]) + reach) - oy);
+                for (var py = py0; py <= py1; py++) {
+                    for (var px = px0; px <= px1; px++) {
+                        if (toSegment(ox + px + 0.5, oy + py + 0.5, a, b) > reach) continue;
+                        var h = decodePixel(rgba, px, py);
+                        if (out[i] === null || h > out[i]) out[i] = h;
+                    }
+                }
+            }
+            var next = 0;
+            function worker() {
+                if (next >= keys.length) return Promise.resolve();
+                var g = groups[keys[next++]];
+                return pixels(g.z, g.x, g.y).then(function (rgba) {
+                    g.items.forEach(function (i) { scan(g, rgba, i); });
+                }, function () { /* its pieces keep what other tiles gave */ }).then(worker);
+            }
+            var workers = [];
+            for (var w = 0; w < Math.min(AT_ONCE, keys.length); w++) workers.push(worker());
+            return Promise.all(workers).then(function () { return out; });
+        }
+
+        return {heightAt: heightAt, heightsAt: heightsAt, bandMaxes: bandMaxes};
     }
 
     // The tooltip's text: the surface's height, and the route's height above it when the pointer is on the route

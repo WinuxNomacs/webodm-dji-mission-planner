@@ -19,7 +19,7 @@ const HTML = `
   <button type="button" id="b-direct" data-seg="takeoff_mode" data-value="direct">Direct</button>
   <button type="button" id="b-safe" data-seg="takeoff_mode" data-value="safe">Safe</button>
   <div id="mp-terrain-row"><input type="hidden" id="mp-surface-follow" value="realtime"><div id="mp-surface-follow-row"><button type="button" id="b-realtime" data-seg="surface_follow" data-value="realtime">Real-time follow</button><button type="button" id="b-dsm" data-seg="surface_follow" data-value="dsm">Terrain model</button></div><div id="mp-dsm-row" hidden><input type="hidden" id="mp-terrain-source" value="lidar"><div><button type="button" data-seg="terrain_source" data-value="lidar">Lidar surface (trees, roofs)</button><button type="button" data-seg="terrain_source" data-value="cop30">COP30</button></div></div></div><div id="mp-safe-row"></div>
-  <input id="mp-tsh"><input id="mp-rth"><input id="mp-transitional">
+  <input id="mp-tsh"><input id="mp-rth"><input id="mp-transitional"><label id="mp-collision-margin-label"></label><input id="mp-collision-margin">
   <label class="mp-chip"><input type="checkbox" id="mp-elevation"> Elevation optimization</label><input type="checkbox" id="mp-geozone">
   <select id="mp-photo-mode"><option value="distance">d</option><option value="time">t</option></select>
   <input id="mp-takeoff-altitude"><select id="mp-finish"><option value="goHome">h</option><option value="autoLand">l</option></select>
@@ -348,6 +348,14 @@ describe("units", () => {
         expect(parseFloat(read.height)).toBeCloseTo(50, 2);
         expect(parseFloat(read.speed)).toBeCloseTo(10, 2);
         expect(Core.parseForm(read).ok).toBe(true);
+    });
+
+    it("shows the collision margin in feet in imperial units, labelled so, and reads it back in meters", () => {
+        form.write({collision_margin: "2"});
+        form.setUnits("imperial");
+        expect(parseFloat($("mp-collision-margin").value)).toBeCloseTo(6.56, 2);
+        expect($("mp-collision-margin-label").textContent).toBe("Collision margin (ft)");
+        expect(parseFloat(form.read().collision_margin)).toBeCloseTo(2, 2);
     });
 
     it("leaves an empty optional field empty across a unit switch", () => {

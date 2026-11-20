@@ -103,11 +103,20 @@ and read the page's console messages. A KMZ is uploaded with `setInputFiles` on 
   first lines): with the lidar surface off and AWS's elevation tiles slowed, in both editors: shown on switching to 3D
   and on a zoom, hidden once drawn and on leaving 3D; screenshots. Deletes its routes.
 - How long the 3D view takes (Phase 21): `perf_3d_check.js` (beside this file; how to run it and its options in its
-  first lines): imports the Illinois sample (its lidar units must be built already) and times, in the area editor, the
+  first lines): imports the Illinois sample (with the lidar on, builds its units first, outside the timings; new units stay: remove them as for `lidar_check.js`) and times, in the area editor, the
   first switch into 3D in a fresh browser, the second, a pan and a reload, lidar off and on: medians of the time to
   the map's last idle, requests by host, long tasks, frames; `MP_PROFILE=1` the main thread's top functions,
   `MP_TRACE=1` each request and elevation tile. Headless Chromium draws WebGL on SwiftShader; the script draws 2D
   canvases in software, since SwiftShader's canvas takes seconds to read back (not what a real GPU does). Deletes its route.
+- The collision margin and the tighter surface (Phase 22): `collision_margin_check.js` (beside this file; how to run it in
+  its first lines): copies an area route given by id (with lidar units built or buildable there: a stack's units from
+  before Phase 22 are built again once, about 25 s for two), checks the "Collision margin" field (2 m for a route saved
+  without it), the side panel's line at 2, 0 and 40 m, feet in imperial, the margin saved with the route, and a
+  waypoint route 60 m up (clear at 0.5 m, red at 100 m); screenshots in 3D. Deletes its routes.
+- The 3D view's Relief (Phase 22): `relief_check.js` (beside this file; how to run it in its first lines): copies an area
+  route given by id, then Relief off by default, on in 3D (its layer under the hillshade, the photo at 45%, the shading
+  "igor"), another basemap and the lidar off and on while it is on, gone in 2D, remembered after a reload, and the
+  waypoint editor; screenshots. Deletes its routes and leaves Relief off. `perf_3d_check.js` with `MP_RELIEF=1` times it.
 - The browser console has no new errors, nor `dev/webodm.sh logs webapp`.
 
 ## Before

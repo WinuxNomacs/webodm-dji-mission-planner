@@ -43,6 +43,8 @@
 #mission-planner .mp-layers-views{ display: flex; gap: 6px; }
 #mission-planner .mp-layers-lidar{ display: block; margin: 6px 0 0 0; font-weight: normal; cursor: pointer; white-space: nowrap; }
 #mission-planner .mp-layers-lidar input{ margin-right: 4px; vertical-align: middle; }
+#mission-planner .mp-layers-relief{ display: block; margin: 6px 0 0 0; font-weight: normal; cursor: pointer; white-space: nowrap; }
+#mission-planner .mp-layers-relief input{ margin-right: 4px; vertical-align: middle; }
 #mission-planner .mp-lidar-status{ position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 4; max-width: 80%; padding: 5px 10px; background: rgba(255,255,255,0.92); border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); font-size: 13px; }
 #mission-planner .mp-lidar-status[hidden]{ display: none; }
 #mission-planner .mp-pointer-height{ position: absolute; z-index: 3; pointer-events: none; padding: 3px 7px; background: rgba(255,255,255,0.92); border-radius: 3px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); font-size: 12px; font-weight: bold; white-space: nowrap; }

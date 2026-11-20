@@ -3,7 +3,8 @@
 // lidar surface (trees and buildings, where USGS lidar exists) or the shape of the ground only. Plain DOM, no map library, so that it can
 // be tested; planner.js puts it on the map as a control.
 (function (root) {
-    // opts: {basemaps: [{label}], selected: label, view3d: bool, lidar: bool, onBasemap(label), onView3d(bool), onLidar(bool)}
+    // opts: {basemaps: [{label}], selected: label, view3d: bool, lidar: bool, relief: bool, onBasemap(label), onView3d(bool),
+    //        onLidar(bool), onRelief(bool)}
     // Returns {element, setSelected(label), setView3d(on), setLidar(on), open(), close(), isOpen()}
     function createLayersPanel(doc, opts) {
         var element = doc.createElement("div");
@@ -72,6 +73,17 @@
         lidarLabel.appendChild(doc.createTextNode(" Lidar surface (US)"));
         panel.appendChild(lidarLabel);
 
+        var reliefLabel = doc.createElement("label");
+        reliefLabel.className = "mp-layers-relief";
+        reliefLabel.title = "In 3D, the ground coloured by its height (blue low, red high) under a stronger shading, with the photo faint over it: the shapes of trees and buildings, whatever the photo shows";
+        var relief = doc.createElement("input");
+        relief.type = "checkbox";
+        relief.checked = !!opts.relief;
+        relief.addEventListener("change", function () { if (opts.onRelief) opts.onRelief(relief.checked); });
+        reliefLabel.appendChild(relief);
+        reliefLabel.appendChild(doc.createTextNode(" Relief (3D)"));
+        panel.appendChild(reliefLabel);
+
         function setView3d(on) {
             flat.classList.toggle("active", !on);
             tilted.classList.toggle("active", !!on);
@@ -99,6 +111,7 @@
             setSelected: function (label) { radios.forEach(function (r) { r.checked = r.value === label; }); },
             setView3d: setView3d,
             setLidar: function (on) { lidar.checked = !!on; },
+            setRelief: function (on) { relief.checked = !!on; },
             open: function () { setOpen(true); },
             close: function () { setOpen(false); },
             isOpen: function () { return open; }

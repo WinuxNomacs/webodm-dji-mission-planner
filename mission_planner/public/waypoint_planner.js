@@ -32,7 +32,9 @@
     // -- forms --------------------------------------------------------------------------------------------------------
 
     // The form's callbacks fire for real user edits only (write() sets values without events), as in planner.js
-    function onFormChange() { setDirty(true); terrainSourceChanged(); showGroundStatus(); showPoi(); shapeChanged(); if (isPoiRoute) showLoopsHint(); aslModeChanged(); schedulePlan(); }
+    function onFormChange() { setDirty(true); marginChanged(); terrainSourceChanged(); showGroundStatus(); showPoi(); shapeChanged(); if (isPoiRoute) showLoopsHint(); aslModeChanged(); schedulePlan(); }
+    // A changed collision margin checks the route against the surface again (the plan itself does not change)
+    function marginChanged() { if (route3d && checkedMargin !== null && collisionMargin() !== checkedMargin) route3d.refresh(); }
 
     var routeModel = "m4t";
     try { routeModel = JSON.parse(document.getElementById("mp-route-model").textContent) || "m4t"; } catch (e) { routeModel = "m4t"; }
@@ -283,6 +285,7 @@
         if (lines) lines.setData(data ? data.lines : EMPTY);
         state.air = data && data.air ? data.air : null;
         if (lidarOn) lidar.ensure(routeBounds());       // the lidar surface around the route, from 2D too
+        if (relief && reliefOn && state.view3d) relief.refresh(lidarBounds());     // the relief's colours round it
         if (route3d) route3d.setAir(state.air, takeoffLngLat());
         showDraped();
         showLabels();
@@ -296,10 +299,14 @@
     var route3d = null;
 
     // The side panel's line about where the route goes into the surface (2D and 3D)
+    // The route's collision margin (the form's, in meters): how close to the surface it may pass, above or beside
+    function collisionMargin() { return Core.collisionMargin(form.read().collision_margin); }
+    var shownCount = null, checkedMargin = null;
     function showCollisions(count) {
+        shownCount = count;
         var el = document.getElementById("mp-collisions");
         if (!el) return;
-        var said = count === null || count === undefined ? null : window.MissionPlannerRoute3d.collisionText(count);
+        var said = count === null || count === undefined ? null : window.MissionPlannerRoute3d.collisionText(count, collisionMargin(), unitsSystem);
         el.hidden = !said;
         el.textContent = said ? said.text : "";
         el.classList.toggle("mp-hit", !!(said && said.hit));
@@ -682,6 +689,10 @@
     var LIDAR_KEY = "mission-planner:lidar";
     var lidarOn = true;
     try { lidarOn = window.localStorage.getItem(LIDAR_KEY) !== "off"; } catch (e) { /* on */ }
+    // The 3D view's Relief (relief.js): off unless turned on in the layers panel, remembered per browser
+    var RELIEF_KEY = "mission-planner:relief";
+    var reliefOn = false, relief = null;
+    try { reliefOn = window.localStorage.getItem(RELIEF_KEY) === "on"; } catch (e) { /* off */ }
     var lidarBar = window.MissionPlannerLidar.createStatusBar(document, map.getContainer());
     var lidar = window.MissionPlannerLidar.createLidarSurface({
         maplibregl: maplibregl, fetch: fetch.bind(window), api: API, csrf: csrf, onStatus: lidarBar.show,
@@ -690,6 +701,7 @@
             if (dem && lidarOn && dem.setTiles) dem.setTiles(tiles);
             showLabels();                       // the surface under the points is the lidar's now
             if (route3d) route3d.refresh();
+            if (relief && reliefOn && state.view3d) relief.refresh(lidarBounds());  // its colours from the lidar's heights
             measure.reread();
         }
     });
@@ -713,6 +725,7 @@
 
     // The 3D view's ground, with its hillshade: the lidar surface, or AWS's terrain tiles when it is off
     function showGround3d() {
+        if (relief) relief.apply(false);        // its layer off the source before the source goes
         map.setTerrain(null);
         if (map.getLayer("mp-hillshade")) map.removeLayer("mp-hillshade");
         if (map.getSource("mp-dem")) map.removeSource("mp-dem");
@@ -720,6 +733,7 @@
         map.addLayer({id: "mp-hillshade", type: "hillshade", source: "mp-dem", paint: {"hillshade-exaggeration": 0.35}}, "mp-path");
         map.setTerrain({source: "mp-dem", exaggeration: 1});
         if (lidarOn) lidar.request(lidarBounds()); else lidar.stop();
+        if (relief && reliefOn) relief.apply(true, lidarBounds());
     }
 
     // The height under the pointer (pointer_height.js), in 2D and 3D, read from the same tiles as the 3D view's ground
@@ -728,6 +742,7 @@
         load: function (z, x, y) { return lidar.load({url: "mplidar://" + z + "/" + x + "/" + y}); },
         isBuilt: function (x, y) { return lidarOn && lidar.isBuilt(x, y); }
     });
+    relief = window.MissionPlannerRelief.createRelief({map: map, heightsAt: heightReader.heightsAt});
     var pointerTip = window.MissionPlannerPointerHeight.createPointerTooltip(document, map.getContainer(), {
         heightAt: heightReader.heightAt, units: function () { return unitsSystem; },
         routeAt: function (point) { return route3d ? route3d.routeNear(point) : null; }
@@ -751,6 +766,12 @@
         b.addEventListener("click", function () { setTool(b.getAttribute("data-tool")); });
     });
 
+    function setRelief(on) {
+        reliefOn = on;
+        try { window.localStorage.setItem(RELIEF_KEY, on ? "on" : "off"); } catch (e) { /* not remembered */ }
+        if (relief && state.view3d) relief.apply(on, lidarBounds());
+    }
+
     function setLidar(on) {
         lidarOn = on;
         try { window.localStorage.setItem(LIDAR_KEY, on ? "on" : "off"); } catch (e) { /* not remembered */ }
@@ -766,7 +787,8 @@
         if (map.getLayer("mp-basemap")) map.removeLayer("mp-basemap");
         if (map.getSource("mp-basemap")) map.removeSource("mp-basemap");
         map.addSource("mp-basemap", Core.basemapSource(bm, window.location.protocol));
-        map.addLayer({id: "mp-basemap", type: "raster", source: "mp-basemap"}, map.getLayer("mp-hillshade") ? "mp-hillshade" : (map.getLayer("mp-path") ? "mp-path" : undefined));
+        map.addLayer({id: "mp-basemap", type: "raster", source: "mp-basemap"}, map.getLayer("mp-relief") ? "mp-relief" : map.getLayer("mp-hillshade") ? "mp-hillshade" : (map.getLayer("mp-path") ? "mp-path" : undefined));
+        if (relief) relief.basemapChanged();
         state.basemap = bm.label;
         layersPanel.setSelected(bm.label);
         try { window.localStorage.setItem(BASEMAP_KEY, bm.label); } catch (e) { /* not remembered */ }
@@ -785,6 +807,7 @@
             showGround3d();
             map.easeTo({pitch: 60});
         } else {
+            if (relief) relief.apply(false);
             map.setTerrain(null);
             if (map.getLayer("mp-hillshade")) map.removeLayer("mp-hillshade");
             map.easeTo({pitch: 0, bearing: 0});
@@ -799,7 +822,7 @@
             if (chosen) applyBasemap(chosen);
         },
         onView3d: function (on) { if (on !== state.view3d) setView3d(on); },
-        onLidar: setLidar
+        onLidar: setLidar, relief: reliefOn, onRelief: setRelief
     });
     function LayersControl() {}
     LayersControl.prototype.onAdd = function () { return layersPanel.element; };
@@ -1014,6 +1037,7 @@
         map.addLayer({id: "mp-takeoff", type: "circle", source: "mp-takeoff", paint: {"circle-radius": 7, "circle-color": "#43a047", "circle-stroke-color": "#fff", "circle-stroke-width": 2}});
         route3d = window.MissionPlannerRoute3d.createRoute3d({maplibregl: maplibregl, map: map, id: "mp-route-3d", before: "mp-takeoff",
                                                              heightsAt: heightReader.heightsAt,
+                                                             bandMaxes: heightReader.bandMaxes, margin: function () { checkedMargin = collisionMargin(); return checkedMargin; },
                                                              discs: false, onFrame: liftMarkers, onCollisions: showCollisions});
 
         restoreMapState();
@@ -1044,6 +1068,7 @@
     function applyUnits(system) {
         unitsSystem = system;
         form.setUnits(system);
+        showCollisions(shownCount);              // the margin in the chosen units
         showLabels();
         measure.relabel();
         [].forEach.call(root.querySelectorAll("[data-units]"), function (b) { b.classList.toggle("active", b.getAttribute("data-units") === system); });

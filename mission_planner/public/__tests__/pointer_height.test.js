@@ -200,3 +200,52 @@ describe("pointer tooltip", () => {
         expect(late.element.hidden).toBe(true);
     });
 });
+
+describe("the highest surface near each piece of a route (collisions with a margin)", () => {
+    const make = (built, tiles) => {
+        const loads = [];
+        const reader = P.createHeightReader({
+            load: (z, x, y) => { loads.push([z, x, y]); const t = tiles(z, x, y); return t instanceof Error ? Promise.reject(t) : Promise.resolve({data: t}); },
+            isBuilt: () => built,
+            decode: data => Promise.resolve(data)
+        });
+        return {reader, loads};
+    };
+    // A point east of (LNG, LAT) by dx meters and north by dy meters
+    const at = (dx, dy) => [LNG + dx / (111320 * Math.cos(LAT * Math.PI / 180)), LAT + dy / 110540];
+    // The zoom-18 pixel (in its tile) of a point, and a tile with a 40 m spike there
+    const spikeAt = p => { const t = P.tileAt(p[0], p[1], 18); return {t, tile: (z, x, y) => tile(214, x === t.x && y === t.y ? {px: t.px, py: t.py, height: 254} : null)}; };
+    const piece = (a, b) => [a[0], a[1], b[0], b[1]];
+
+    it("is the highest pixel within the margin of the piece, along its whole length", async () => {
+        const {tile: tiles} = spikeAt(at(10, 1.5));                // beside the middle of a 20 m piece, 1.5 m off
+        const {reader} = make(true, tiles);
+        const [near, far] = await Promise.all([reader.bandMaxes([piece(at(0, 0), at(20, 0))], 2), reader.bandMaxes([piece(at(0, 0), at(20, 0))], 0.5)]);
+        expect(near[0]).toBeCloseTo(254, 1);
+        expect(far[0]).toBeCloseTo(214, 1);
+    });
+
+    it("with no margin, is the highest pixel the piece crosses", async () => {
+        const {tile: tiles} = spikeAt(at(10, 0));
+        const {reader} = make(true, tiles);
+        expect((await reader.bandMaxes([piece(at(0, 0), at(20, 0))], 0))[0]).toBeCloseTo(254, 1);
+    });
+
+    it("reads AWS's zoom-15 tile where the lidar is not built", async () => {
+        const {reader, loads} = make(false, () => tile(213.25));
+        expect((await reader.bandMaxes([piece(at(0, 0), at(20, 0))], 2))[0]).toBeCloseTo(213.25, 2);
+        expect(loads.every(l => l[0] === 15)).toBe(true);
+    });
+
+    it("reads each tile once for all the pieces in it", async () => {
+        const {reader, loads} = make(true, () => tile(214));
+        const pieces = [0, 1, 2, 3].map(i => piece(at(i * 5, 0), at(i * 5 + 5, 0)));
+        await reader.bandMaxes(pieces, 2);
+        expect(new Set(loads.map(l => l.join("/"))).size).toBe(loads.length);
+    });
+
+    it("answers nothing for a piece whose tiles did not load", async () => {
+        const {reader} = make(true, () => new Error("offline"));
+        expect(await reader.bandMaxes([piece(at(0, 0), at(20, 0))], 2)).toEqual([null]);
+    });
+});

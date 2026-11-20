@@ -277,6 +277,9 @@
                     <div class="form-group"><label for="mp-transitional" id="mp-transitional-label">Takeoff speed (m/s)</label><input type="number" step="any" class="form-control input-sm" id="mp-transitional" name="transitional_speed"></div>
                     <div class="form-group"><label for="mp-rth" id="mp-rth-label">Return height (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-rth" name="rth_height"></div>
                 </div>
+                <div class="mp-row">
+                    <div class="form-group" title="The editor's check against the surface (trees, roofs, the ground): the route is red where it passes closer than this to it, above or beside. It changes the check only, not the mission"><label for="mp-collision-margin" id="mp-collision-margin-label">Collision margin (m)</label><input type="number" step="any" min="0" max="100" class="form-control input-sm" id="mp-collision-margin" name="collision_margin"></div>
+                </div>
                 <div class="checkbox">
                     <label title="Avoid the custom geo zones"><input type="checkbox" id="mp-geozone" name="avoid_limit_area"> Custom GEO zone obstacle bypassing</label>
                 </div>
@@ -320,6 +323,7 @@
 <script defer src="{{ public }}planner_core.js"></script>
 <script defer src="{{ public }}layers_panel.js"></script>
 <script defer src="{{ public }}lidar_surface.js"></script>
+<script defer src="{{ public }}relief.js"></script>
 <script defer src="{{ public }}pointer_height.js"></script>
 <script defer src="{{ public }}measure.js"></script>
 <script defer src="{{ public }}route_3d.js"></script>
