@@ -7,9 +7,12 @@ sections below. New requests arrive in `new.md`: they are turned into phases her
 to its title.
 
 **Up next**
+1. **Phase 19: true distances in area and linear routes** (planned 2026-11-19): lay the lines out in a frame centred
+   on the route instead of its UTM zone, so the spacing between lines is the one asked for on the ground. Details in
+   the Phase 19 section.
 
-Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views
-of the replaced commits, then make it public.
+Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
+commits, then make it public.
 
 The plugin is for development only (the user, 2026-11-17): version 1.0.0 is merged but not released, and no release
 is planned: no tag, no GitHub release, no zip handed out.
@@ -834,6 +837,52 @@ the fetch on picking the takeoff point (244 m, the route drawn at 294 m in 3D), 
 fetch keeps the new point's height, no fetch on opening a waypoint route in ASL, a failed automatic fetch shown in
 the hint with no dialog, Fetch from elevation data clearing the hints; routes deleted.
 
+
+## Phase 19: true distances in area and linear routes (planned 2026-11-19)
+
+The request: found in Phase 18 (the golden files changed when the samples moved east), the user asked for the
+correction to be planned (2026-11-19).
+
+**What is wrong.** `planning._survey_plan` (area routes, nadir and oblique passes) and `linear.plan` lay out their
+lines in metres of the route's UTM zone (`utm_transformers`). UTM metres are not ground metres: the scale is 0.9996
+on the zone's central meridian and grows away from it (pyproj, 2026-11-19: 0.99960 on the meridian, 1.00036 at a
+zone's edge at 42N, 1.00098 at its edge on the equator). The spacing between lines, the margin, the linear route's
+offsets and the plan's distance, duration and area are off by that much. Measured on a 2 km x 1.5 km area, M4T wide,
+60 m (the asked spacing 25.952 m; the spacing on the ellipsoid between the first two lines): the sample B place
+25.958 m, a central meridian 25.963 m, a zone edge on the equator 25.928 m. The waypoints move by up to 0.5 m,
+1.0 m and 2.4 m there when the frame changes. The photo interval along a line is not affected (the aircraft
+measures it in flight). Linear routes also take the zone of their first point, so a line crossing a zone edge is
+laid out in the zone it starts in. Slope and geometric routes already use a local azimuthal equidistant frame
+(`slope.face`, `geometric.frame`) and stay as they are.
+
+**The design.**
+- `planning.local_transformers(lon, lat)`: an azimuthal equidistant projection (`+proj=aeqd`, WGS84) centred on the
+  given point, the frame slope and geometric routes use. Its scale is 1 at the centre and off by under 1e-7 at 2 km
+  (the frame's distortion grows with the square of the distance). It replaces `utm_transformers` and `utm_epsg`.
+- Area routes centre it on the polygon's middle (as the zone is picked today). Grid north is true north at the centre,
+  so `grid_convergence` goes (the direction is used as it is); a line's bearing away from the centre then differs
+  from the asked one by the convergence of meridians over that distance (about 0.01 degree at 1 km at 42N), the same
+  as what UTM's single convergence value left.
+- Linear routes centre it on the middle of the centre line's extent, not its first point.
+- The plan's lengths (distance, duration, transitions) are measured in that frame, which is now true to the
+  millimetre at these sizes.
+- Saved routes keep their settings; their lines are planned again when they are opened or exported, so they move by
+  up to the waypoint shifts above against a KMZ downloaded before. Imported Pilot 2 routes are planned again too
+  (as now). Nothing is migrated.
+
+**Tests.** First, a failing test in `test_mission_planning` and `test_mission_linear`: the spacing between two lines,
+measured on the ellipsoid (`pyproj.Geod`), equals the asked spacing within 1 mm for an area at a zone's edge on the
+equator and on a central meridian (today 24 mm and 11 mm off). The tests' helpers that measure in UTM
+(`test_mission_planning.to_metric`) measure on the ellipsoid instead; the convergence test is replaced by one that a
+due-north direction gives lines along the meridian through the centre. Golden files regenerated
+(`MP_UPDATE_GOLDEN=1`), their differences read before committing: only coordinates in the last digits and the
+distances and durations they change. Then every module, Jest, ESLint, Ruff; a live check that an area route and a
+linear route still plan, show and download (the plan's numbers in the editor's summary).
+
+**Docs.** README (if it says how lines are laid out), CHANGELOG (Unreleased: the spacing between lines is now the
+asked one on the ground), the Phase 18 Done entry's aside on UTM.
+
+No decisions are open: the frame and its centre follow the slope and geometric routes.
 
 ## Phase 18: ready to publish (planned and built 2026-11-19)
 
