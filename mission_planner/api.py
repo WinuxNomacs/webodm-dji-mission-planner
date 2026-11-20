@@ -470,6 +470,8 @@ def plan_result(request, kind, plan, s):
         result = {"summary": summary(plan, s), "warnings": wpml.mission_warnings(plan, s)}
         result.update(geojson(plan))
         result["air"] = air.area(plan, s, plan_terrain(request, kind, plan, s))
+    if djifly.is_djifly(s.model):
+        result["warnings"] = result["warnings"] + djifly.warnings(kind, s)
     return result
 
 
@@ -524,8 +526,9 @@ class ExportView(MissionView):
         data, file_name, content_type = djifly.bundle(files, name)
         response = HttpResponse(data, content_type=content_type)
         response["Content-Disposition"] = 'attachment; filename="%s"' % file_name
-        response["X-Mission-Warnings"] = ("Split into %d DJI Fly missions of at most %d points" % (len(files), djifly.MAX_WAYPOINTS)
-                                          if len(files) > 1 else "")
+        notes = djifly.warnings(kind, s) + (["Split into %d DJI Fly missions of at most %d points" % (len(files), djifly.MAX_WAYPOINTS)]
+                                            if len(files) > 1 else [])
+        response["X-Mission-Warnings"] = " | ".join(notes)[:900].encode("ascii", "replace").decode()
         return response
 
 

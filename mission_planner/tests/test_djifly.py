@@ -7,6 +7,7 @@ import io
 import json
 import re
 import zipfile
+from unittest import mock
 
 from django.test import Client, SimpleTestCase
 
@@ -209,6 +210,31 @@ class TestApi(BootTestCase):
                     res = self.post(path, slope_kmz.body(model=model, cameras=cameras))
                     self.assertEqual(res.status_code, 400, res.content[:300])
                     self.assertIn("not offered slope routes", res.json()["error"])
+
+    def test_a_huge_area_is_refused_before_its_points_are_made(self):
+        import time
+        huge = [[round(v, 9) for v in p] for p in area_kmz.rectangle(10000, 10000)]
+        body = dict(area_kmz.body(model="mini4pro", cameras=["visable"], height_mode="relativeToStartPoint", polygon=huge, height=12),
+                    route_type="area", name="Typo")
+        started = time.monotonic()
+        res = self.post("export", body)
+        self.assertEqual(res.status_code, 400, res.content[:300])
+        self.assertRegex(res.json()["error"], r"needs at least \d+ points, and a download holds at most")
+        self.assertLess(time.monotonic() - started, 10)
+
+    def test_an_agl_route_without_a_takeoff_point_is_warned_on_plan_and_download(self):
+        body = dict(area_kmz.body(model="mavic3classic", cameras=["visable"], height_mode="realTimeFollowSurface", speed=None,
+                                  takeoff_ref_point=None), route_type="area", name="Back field")
+        res = self.post("plan", body)
+        self.assertEqual(res.status_code, 200, res.content[:300])
+        self.assertTrue(any("first point's ground" in w for w in res.json()["warnings"]), res.json()["warnings"])
+        with_takeoff = self.post("plan", dict(body, takeoff_ref_point=area_kmz.body()["takeoff_ref_point"]))
+        self.assertFalse(any("first point's ground" in w for w in with_takeoff.json()["warnings"]))
+        terrain_tif = linear_kmz.terrain_tif()
+        with mock.patch.object(mission_planner_api, "route_terrain", return_value=(terrain_tif, {})):
+            res = self.post("export", body)
+        self.assertEqual(res.status_code, 200, res.content[:300])
+        self.assertIn("first point's ground", res["X-Mission-Warnings"])
 
     def test_oblique_on_a_dji_fly_drone_is_refused_when_planned(self):
         body = dict(area_kmz.oblique(model="air3s", cameras=["visable"], height_mode="relativeToStartPoint"), route_type="area")
