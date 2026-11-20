@@ -222,6 +222,25 @@ class TestRequest(LidarTestCase):
         self.assertTrue(os.path.exists(path + ".bad"))
         self.assertEqual(queued, [[self.unit]])
 
+    def test_units_waiting_in_a_long_batch_are_not_taken_over(self):
+        # each unit can take minutes: the ones still waiting stay queued, not stale, while the batch runs
+        units = [(self.unit[0] + i, self.unit[1]) for i in range(3)]
+        queued = []
+        lidar.request(units, enqueue=queued.append)
+        later = time.time() + lidar.STALE_AFTER + 1
+        taken = []
+
+        def slow_build(unit):
+            if unit == units[1]:     # the batch has run past STALE_AFTER by the second unit
+                with mock.patch.object(lidar.time, "time", return_value=later + 1):
+                    lidar.request(units, enqueue=taken.append)
+            lidar.write_state(unit, "none", "no USGS lidar here")
+
+        with mock.patch.object(lidar, "build_unit", side_effect=slow_build), \
+                mock.patch.object(lidar.time, "time", return_value=later):
+            lidar.build_units(units)
+        self.assertEqual(taken, [])
+
     def test_the_worker_job_builds_the_units_of_the_module_it_is_given(self):
         with mock.patch.object(lidar, "build_units") as build:
             lidar.build_job(lidar.__name__, [[1, 2]])
@@ -522,6 +541,11 @@ class TestLidarApi(LidarTestCase):
         self.assertEqual(res["Content-Type"], "image/png")
         self.assertEqual(self.client.get(API + "lidar/tiles/14/1/1.png").status_code, 404)
         self.assertEqual(self.client.get(API + "lidar/tiles/18/999999999/1.png").status_code, 404)
+
+    def test_a_tile_removed_while_it_is_served_is_404(self):
+        # the lidar folder's cap can remove a unit between finding its tile and reading it
+        with mock.patch.object(lidar, "tile_path", return_value=os.path.join(tempfile.gettempdir(), "mp-no-such-tile.png")):
+            self.assertEqual(self.client.get(API + "lidar/tiles/15/%d/%d.png" % self.unit).status_code, 404)
 
 
 class TestLidarSettings(LidarTestCase):

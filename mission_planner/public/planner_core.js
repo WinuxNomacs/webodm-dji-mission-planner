@@ -430,6 +430,16 @@
         return Math.min(500, Math.max(2, height * GSD_PER_M_BY_MODEL[fromModel].visable / GSD_PER_M_BY_MODEL[toModel].visable));
     }
 
+    // A refused request's answer as a rejected promise with the server's message ({error}), or the fallback when the
+    // answer is not JSON (a server error page) or has none
+    function failure(res, fallback) {
+        return res.json().then(function (d) {
+            throw new Error((d && d.error) || fallback);
+        }, function () {
+            throw new Error(fallback + " (the server answered " + res.status + ")");
+        });
+    }
+
     function roundTo(v, digits) { var m = Math.pow(10, digits); return Math.round(v * m) / m; }
 
     // -- waypoint routes ----------------------------------------------------------------------------------------------
@@ -1329,7 +1339,7 @@
         return {setDirty: setDirty, save: save, isDirty: function () { return dirty; }};
     }
 
-    var api = {DRONES: DRONES, GSD_PER_M: GSD_PER_M, GSD_PER_M_BY_MODEL: GSD_PER_M_BY_MODEL, copiedHeight: copiedHeight, gsdCm: gsdCm, heightForGsd: heightForGsd, roundTo: roundTo, OSM: OSM, TERRAIN_SOURCE: TERRAIN_SOURCE, basemapSource: basemapSource, chooseBasemap: chooseBasemap, DEFAULTS: DEFAULTS, LIMITS: LIMITS, parseForm: parseForm, requestBody: requestBody, bearing: bearing, distance: distance,
+    var api = {failure: failure, DRONES: DRONES, GSD_PER_M: GSD_PER_M, GSD_PER_M_BY_MODEL: GSD_PER_M_BY_MODEL, copiedHeight: copiedHeight, gsdCm: gsdCm, heightForGsd: heightForGsd, roundTo: roundTo, OSM: OSM, TERRAIN_SOURCE: TERRAIN_SOURCE, basemapSource: basemapSource, chooseBasemap: chooseBasemap, DEFAULTS: DEFAULTS, LIMITS: LIMITS, parseForm: parseForm, requestBody: requestBody, bearing: bearing, distance: distance,
                longestSideDirection: longestSideDirection, areaBounds: areaBounds, rectangleCorners: rectangleCorners, formatArea: formatArea, formatDuration: formatDuration, formatDistance: formatDistance, summaryRows: summaryRows, parseCoordinates: parseCoordinates,
                photonLanguage: photonLanguage, photonUrl: photonUrl, photonSuggestions: photonSuggestions, suggestPlaces: suggestPlaces, showSuggestion: showSuggestion,
                metersToFeet: metersToFeet, feetToMeters: feetToMeters, mpsToMph: mpsToMph, mphToMps: mphToMps,

@@ -161,17 +161,20 @@
     // says when the route has none that covers the plan (409, needs_terrain), and it is fetched and the export tried
     // again
     function download(afterFetch) {
+        if (state.exporting) return;           // a second click while the first download runs
         var body = requestBody();
         if (!body) return;
+        state.exporting = true;
         if (routeId) body.route_id = parseInt(routeId, 10);
         if (readForm().terrain_source) body.terrain_source = readForm().terrain_source;   // the kept terrain must be made for it
 
         post("export", body).then(function (res) {
             if (res.status === 409) return res.json().then(function (d) {
                 if (!d.needs_terrain || afterFetch === true) throw new Error(d.error || "The mission could not be exported");
+                state.exporting = false;            // the export is tried again once the terrain is fetched
                 fetchTerrain(function () { download(true); });
             });
-            if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || "The mission could not be exported"); });
+            if (!res.ok) return Core.failure(res, "The mission could not be exported");
             return res.blob().then(function (blob) {
                 var link = document.createElement("a");
                 link.href = URL.createObjectURL(blob);
@@ -183,17 +186,19 @@
                 document.body.removeChild(link);
                 setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
             });
-        }).catch(function (e) { els.errors.textContent = e.message; });
+        }).catch(function (e) { els.errors.textContent = e.message; }).then(function () { state.exporting = false; });
     }
 
 
     // The route as plain KML (its shape and flight path, api.KmlView), saved as a file
     function downloadKml() {
+        if (state.makingKml) return;           // a second click while the first download runs
         var body = requestBody();
         if (!body) return;
+        state.makingKml = true;
         if (routeId) body.route_id = parseInt(routeId, 10);     // AGL over the route's terrain: the path at its heights
         post("kml", body).then(function (res) {
-            if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || "The KML could not be made"); });
+            if (!res.ok) return Core.failure(res, "The KML could not be made");
             return res.blob().then(function (blob) {
                 var link = document.createElement("a");
                 link.href = URL.createObjectURL(blob);
@@ -203,7 +208,7 @@
                 document.body.removeChild(link);
                 setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
             });
-        }).catch(function (e) { els.errors.textContent = e.message; });
+        }).catch(function (e) { els.errors.textContent = e.message; }).then(function () { state.makingKml = false; });
     }
 
     // -- map ----------------------------------------------------------------------------------------------------------

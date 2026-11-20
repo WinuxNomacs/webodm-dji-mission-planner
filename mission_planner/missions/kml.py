@@ -17,7 +17,7 @@ import zipfile
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
-from .kmz_import import MAX_NAME, MAX_TEMPLATE_SIZE, MAX_VERTICES, KmzImportError
+from .kmz_import import MAX_NAME, MAX_TEMPLATE_SIZE, MAX_VERTICES, KmzImportError, read_entry
 from .linear import MAX_POINTS
 
 KML_NS = "http://www.opengis.net/kml/2.2"
@@ -46,7 +46,7 @@ def _document(data):
                 name = "doc.kml" if "doc.kml" in kmls else kmls[0]
                 if z.getinfo(name).file_size > MAX_TEMPLATE_SIZE:
                     raise KmzImportError("The KML file is too large")
-                data = z.read(name)
+                data = read_entry(z, name)
         except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError):
             raise KmzImportError("This is not a .kmz file (not a zip archive)")
     elif len(data) > MAX_TEMPLATE_SIZE:
@@ -155,7 +155,8 @@ def write_kml(name, shape, air):
 
     :param name: the route's name
     :param shape: ("polygon", [(lon, lat), ...]), ("line", [...]) or ("points", [...]): what the route was drawn as
-    :param air: air.py's result: {"reference": "sea" | "surface" | "takeoff", "paths": [[[lon, lat, h], ...], ...]}
+    :param air: air.py's result: {"reference": "sea" | "surface" | "takeoff", "paths": [[[lon, lat, h], ...], ...]}, or
+        None (the shape only)
     """
     kind, points = shape
     points = [tuple(float(v) for v in p[:2]) for p in points]
@@ -169,9 +170,12 @@ def write_kml(name, shape, air):
     else:
         drawn = [_placemark("Point %d" % (i + 1), "<Point><coordinates>%s</coordinates></Point>" % _coordinates_text([p]))
                  for i, p in enumerate(points)]
+    if air is None:     # a slope or geometric route without the geoid grid (air.ellipsoidal)
+        air = {"reference": None, "paths": []}
     sea = air.get("reference") == "sea"
     mode = "absolute" if sea else "relativeToGround"
-    note = ("Heights above sea level." if sea else
+    note = ("The flight path could not be drawn (the geoid grid could not be had): the shape only." if air.get("reference") is None else
+            "Heights above sea level." if sea else
             "Heights above the ground under the path." if air.get("reference") == "surface" else
             "Heights above the takeoff point, drawn above the ground under the path (the takeoff point's height is not set).")
     paths = [_placemark("Flight path %d" % (i + 1) if len(air.get("paths", [])) > 1 else "Flight path",
@@ -180,8 +184,9 @@ def write_kml(name, shape, air):
              for i, path in enumerate(air.get("paths", [])) if len(path) >= 2]
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="%s"><Document><name>%s</name>'
             '<description>%s Made by the DJI Mission Planner for viewing; not a mission file.</description>'
-            '<Folder><name>Route</name>%s</Folder><Folder><name>Flight path</name>%s</Folder></Document></kml>\n'
-            % (KML_NS, escape(name), escape(note), "".join(drawn), "".join(paths)))
+            '<Folder><name>Route</name>%s</Folder>%s</Document></kml>\n'
+            % (KML_NS, escape(name), escape(note), "".join(drawn),
+               "<Folder><name>Flight path</name>%s</Folder>" % "".join(paths) if paths else ""))
 
 
 def file_name(name):

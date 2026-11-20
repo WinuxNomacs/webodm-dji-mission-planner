@@ -83,10 +83,17 @@ def _along(line, spacing):
     return out
 
 
-def survey_points(lines, spacing):
+def survey_points(lines, spacing, kind=None):
     """An area or linear route's lines as waypoints, one per photo: [((lon, lat), photo), ...]"""
     if not spacing or spacing <= 0:
         raise ExportError("The photos need a spacing")
+    # Each line gives at least one point per spacing walked and its start: a route past the limit is refused before
+    # its points are made (a mistyped height or area could make millions)
+    least = sum(int(sum(GEOD.inv(a[0], a[1], b[0], b[1])[2] for a, b in zip(line, line[1:])) // spacing) + 1
+                for line in lines if len(line) >= 2)
+    if least > MAX_POINTS:
+        raise ExportError("This route needs at least %d points, and a download holds at most %d (%d DJI Fly missions). %s"
+                          % (least, MAX_POINTS, MAX_MISSIONS, ADVICE.get(kind, "Split it into smaller routes")))
     points = []
     for line in lines:
         if len(line) >= 2:
@@ -147,12 +154,21 @@ def route_points(kind, plan, s, tif=None):
         # center line from its bend on, as the plan's photo count has it
         w = plan.waypoints
         lines = [w[:len(w) if plan.stop is None else plan.stop + 1]] + ([] if plan.bend is None else [w[plan.bend:]])
-        found = survey_points(lines, plan.interval)
+        found = survey_points(lines, plan.interval, kind)
     else:
-        found = survey_points(plan.nadir.lines, plan.nadir.interval)
+        found = survey_points(plan.nadir.lines, plan.nadir.interval, kind)
     heights = _relative_survey(found, s, kind, tif)
     return [{"lon": p[0], "lat": p[1], "height": h, "photo": photo, "pitch": -90.0, "heading": None, "hover": 0}
             for (p, photo), h in zip(found, heights)]
+
+
+def warnings(kind, s):
+    """What the download should say about a DJI Fly route beyond the plan's own warnings"""
+    agl = s.height_mode == ("agl" if kind == "waypoint" else "realTimeFollowSurface")
+    if agl and s.takeoff_ref_point is None:
+        return [("No takeoff point is set: the heights are above the first point's ground. Take off at the first point, "
+                 "or set the takeoff point: taking off lower flies the route that much closer to the ground")]
+    return []
 
 
 def split(points, kind=None):

@@ -1281,3 +1281,18 @@ describe("rectangleCorners", () => {
         close(c3, [end[0], start[1]]);
     });
 });
+
+describe("failure", () => {
+    const answer = (status, body, json) => ({status, json: () => json ? Promise.resolve(JSON.parse(body)) : Promise.reject(new SyntaxError("Unexpected token '<'"))});
+    test("a refusal with a JSON error rejects with its message", async () => {
+        await expect(Core.failure(answer(400, '{"error": "Fetch the terrain first"}', true), "The KML could not be made"))
+            .rejects.toThrow("Fetch the terrain first");
+    });
+    test("an answer that is not JSON (a server error page) rejects with the fallback and the status", async () => {
+        await expect(Core.failure(answer(500, "<html>", false), "The KML could not be made"))
+            .rejects.toThrow("The KML could not be made (the server answered 500)");
+    });
+    test("JSON without an error rejects with the fallback", async () => {
+        await expect(Core.failure(answer(502, "{}", true), "The mission could not be exported")).rejects.toThrow("The mission could not be exported");
+    });
+});

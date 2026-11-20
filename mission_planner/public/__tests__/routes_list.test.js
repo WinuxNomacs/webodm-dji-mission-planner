@@ -26,9 +26,19 @@ describe("offersRouteType", () => {
         expect(offersRouteType("m30t", "linear")).toBe(true);
         expect(offersRouteType("nope", "area")).toBe(false);
     });
+    test("a POI route is a waypoint route DJI Fly cannot fly: it faces a point of interest", () => {
+        expect(offersRouteType("m4t", "poi")).toBe(true);
+        expect(offersRouteType("mini4pro", "waypoint")).toBe(true);
+        expect(offersRouteType("mini4pro", "poi")).toBe(false);
+    });
 });
 
 describe("copyNote", () => {
+    test("an oblique area copied for a DJI Fly drone becomes ortho, and says so", () => {
+        const note = copyNote({model: "m4t", route_type: "area", settings: {height: "50", collection_mode: "oblique"}}, "air3");
+        expect(note).toContain("DJI Fly takes ortho photos only: the copy is an ortho collection.");
+        expect(copyNote({model: "m4t", route_type: "area", settings: {height: "50", collection_mode: "oblique"}}, "m4e")).not.toContain("ortho");
+    });
     it("says a copy for the same model is exact", () => {
         expect(copyNote({model: "m4t", settings: {height: "50"}}, "m4t")).toBe("An exact copy.");
     });
@@ -213,6 +223,29 @@ describe("init", () => {
         model.value = "m30";
         model.dispatchEvent(new Event("change", {bubbles: true}));
         expect(hidden()).toEqual(["slope", "geometric"]);
+    });
+
+    it("remembers the chosen model for the next visit, and ignores one no longer listed or unreadable storage", () => {
+        window.localStorage.clear();
+        init(document, jest.fn(() => jsonResponse([])));
+        const model = document.getElementById("mp-new-model");
+        model.value = "m30";
+        model.dispatchEvent(new Event("change", {bubbles: true}));
+        document.body.innerHTML = HTML;
+        init(document, jest.fn(() => jsonResponse([])));
+        expect(document.getElementById("mp-new-model").value).toBe("m30");
+        expect(document.getElementById("mp-new-slope").closest("li").hidden).toBe(true);
+
+        window.localStorage.setItem("mission-planner:model", "gone");
+        document.body.innerHTML = HTML;
+        init(document, jest.fn(() => jsonResponse([])));
+        expect(document.getElementById("mp-new-model").value).toBe("m4t");
+
+        const getItem = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("denied"); });
+        document.body.innerHTML = HTML;
+        expect(() => init(document, jest.fn(() => jsonResponse([])))).not.toThrow();
+        getItem.mockRestore();
+        window.localStorage.clear();
     });
 
     it("does nothing when the page has no routes root", async () => {

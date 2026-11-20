@@ -83,6 +83,29 @@ def edited(data, *replacements, extra=None):
     return out.getvalue()
 
 
+def damaged(data, flags=None, method=None, corrupt=None):
+    """The zip with every entry's flags or compression method set as given in its headers (flags 1: encrypted;
+    method 99: AES), or with the stored bytes of entry `corrupt` changed (its CRC then fails)"""
+    content = files(data)
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:
+        for name, value in content.items():
+            z.writestr(name, value)
+    b = bytearray(out.getvalue())
+    if corrupt is not None:
+        at = b.index(content[corrupt][:64])
+        b[at + len(content[corrupt]) // 2] ^= 0xFF
+    for signature, offset in ((b"PK\x03\x04", 6), (b"PK\x01\x02", 8)):
+        at = b.find(signature)
+        while at >= 0:
+            if flags is not None:
+                b[at + offset:at + offset + 2] = flags.to_bytes(2, "little")
+            if method is not None:
+                b[at + offset + 2:at + offset + 4] = method.to_bytes(2, "little")
+            at = b.find(signature, at + 4)
+    return bytes(b)
+
+
 def element(tag, value):
     return (r"<wpml:%s>[^<]*</wpml:%s>" % (tag, tag), "<wpml:%s>%s</wpml:%s>" % (tag, value, tag))
 
@@ -311,6 +334,15 @@ class TestRefusals(SimpleTestCase):
             z.writestr("doc.kml", "<kml/>")
         self.refused(out.getvalue(), "no wpmz/template.kml")
         self.refused(edited(export(body()), (r"</kml>", "")), "not valid XML")
+
+    def test_an_encrypted_or_damaged_zip_is_refused_with_a_reason(self):
+        data = export(body())
+        self.refused(damaged(data, flags=1), "cannot be read")
+        self.refused(damaged(data, method=99), "cannot be read")
+        self.refused(damaged(data, corrupt="wpmz/template.kml"), "cannot be read")
+        with_dsm = export(body(surface_follow="dsm"), dsm=dsm())
+        with self.assertRaisesRegex(KmzImportError, "cannot be read"):
+            read_kmz_dsm(damaged(with_dsm, corrupt="wpmz/res/dsm/" + dsm()[1]))
 
     def test_a_template_with_a_doctype_is_refused(self):
         self.refused(edited(export(body()), (r"^<\?xml[^>]*\?>", '<?xml version="1.0"?><!DOCTYPE kml [<!ENTITY e "x">]>')), "not valid XML")

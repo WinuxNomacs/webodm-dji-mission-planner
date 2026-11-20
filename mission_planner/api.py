@@ -398,6 +398,7 @@ class MissionView(APIView):
 
     def load(self, request, strict=False):
         kind, plan, s = self.planned(request, strict)
+        check_route_type(kind, s.model)     # what the editors cannot ask for, a hand-made request can
         if djifly.is_djifly(s.model):
             djifly.check(kind, s)       # what DJI Fly cannot fly is said when the route is planned, not only on export
         return kind, plan, s
@@ -469,6 +470,8 @@ def plan_result(request, kind, plan, s):
         result = {"summary": summary(plan, s), "warnings": wpml.mission_warnings(plan, s)}
         result.update(geojson(plan))
         result["air"] = air.area(plan, s, plan_terrain(request, kind, plan, s))
+    if djifly.is_djifly(s.model):
+        result["warnings"] = result["warnings"] + djifly.warnings(kind, s)
     return result
 
 
@@ -523,8 +526,9 @@ class ExportView(MissionView):
         data, file_name, content_type = djifly.bundle(files, name)
         response = HttpResponse(data, content_type=content_type)
         response["Content-Disposition"] = 'attachment; filename="%s"' % file_name
-        response["X-Mission-Warnings"] = ("Split into %d DJI Fly missions of at most %d points" % (len(files), djifly.MAX_WAYPOINTS)
-                                          if len(files) > 1 else "")
+        notes = djifly.warnings(kind, s) + (["Split into %d DJI Fly missions of at most %d points" % (len(files), djifly.MAX_WAYPOINTS)]
+                                            if len(files) > 1 else [])
+        response["X-Mission-Warnings"] = " | ".join(notes)[:900].encode("ascii", "replace").decode()
         return response
 
 
@@ -714,6 +718,8 @@ def copied_settings(settings, source_model, model, route_type="area"):
     settings["lens_ir"] = "false"
     if not DRONES[model].realtime_follow and settings.get("surface_follow", "realtime") == "realtime":
         settings["surface_follow"] = "dsm"      # the model flies AGL over the terrain model only
+    if djifly.is_djifly(model) and settings.get("collection_mode") == "oblique":
+        settings["collection_mode"] = "ortho"   # DJI Fly takes ortho photos only (djifly.check)
     return settings
 
 
@@ -733,6 +739,8 @@ class RouteCopyView(APIView):
             check_route_type(source.route_type, model)
         except RequestError as e:
             raise ValidationError({"model": str(e)})
+        if djifly.is_djifly(model) and source.route_type == "waypoint" and (source.settings or {}).get("shape"):
+            raise ValidationError({"model": "DJI Fly missions cannot face a point of interest from this planner yet"})
         settings = copied_settings(source.settings, source.model, model, source.route_type)
         route = create_route(request.user, {"name": source.name + " (copy)", "route_type": source.route_type,
                                             "model": model, "settings": settings})
@@ -1094,7 +1102,10 @@ class LidarTileView(APIView):
         path = lidar.tile_path(int(z), int(x), int(y))
         if path is None:
             raise Http404("No lidar tile here")
-        with open(path, "rb") as f:
-            response = HttpResponse(f.read(), content_type="image/png")
+        try:
+            with open(path, "rb") as f:
+                response = HttpResponse(f.read(), content_type="image/png")
+        except FileNotFoundError:
+            raise Http404("No lidar tile here")     # removed by the lidar folder's cap since it was found
         response["Cache-Control"] = "private, max-age=3600"
         return response

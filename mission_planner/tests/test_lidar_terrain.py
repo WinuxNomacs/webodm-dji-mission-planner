@@ -193,6 +193,12 @@ class TestFallbacks(LidarTerrainCase):
         with mock.patch.object(geoid, "navd88_shift", side_effect=geoid.GeoidError("Could not download the geoid grid (ConnectionError)")):
             self.assertCop30(self.fetch(), "the GEOID18 grid could not be had")
 
+    def test_a_unit_removed_while_it_is_read(self):
+        self.build_all()
+        import rasterio.errors
+        with mock.patch.object(lidar_terrain, "highest", side_effect=rasterio.errors.RasterioIOError("dsm.tif: No such file")):
+            self.assertCop30(self.fetch(), "the lidar surface changed while it was read")
+
     def test_outside_the_conterminous_us(self):
         paris = [(2.3522, 48.8566), (2.3532, 48.8570)]
         with mock.patch.object(terrain, "fetch_terrain", return_value=(cop30_tif(), cop30_info())):
