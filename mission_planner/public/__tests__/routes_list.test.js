@@ -225,6 +225,29 @@ describe("init", () => {
         expect(hidden()).toEqual(["slope", "geometric"]);
     });
 
+    it("remembers the chosen model for the next visit, and ignores one no longer listed or unreadable storage", () => {
+        window.localStorage.clear();
+        init(document, jest.fn(() => jsonResponse([])));
+        const model = document.getElementById("mp-new-model");
+        model.value = "m30";
+        model.dispatchEvent(new Event("change", {bubbles: true}));
+        document.body.innerHTML = HTML;
+        init(document, jest.fn(() => jsonResponse([])));
+        expect(document.getElementById("mp-new-model").value).toBe("m30");
+        expect(document.getElementById("mp-new-slope").closest("li").hidden).toBe(true);
+
+        window.localStorage.setItem("mission-planner:model", "gone");
+        document.body.innerHTML = HTML;
+        init(document, jest.fn(() => jsonResponse([])));
+        expect(document.getElementById("mp-new-model").value).toBe("m4t");
+
+        const getItem = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("denied"); });
+        document.body.innerHTML = HTML;
+        expect(() => init(document, jest.fn(() => jsonResponse([])))).not.toThrow();
+        getItem.mockRestore();
+        window.localStorage.clear();
+    });
+
     it("does nothing when the page has no routes root", async () => {
         document.body.innerHTML = "";
         const fetchFn = jest.fn();

@@ -215,7 +215,16 @@
                 (entry.closest("li") || entry).hidden = !offersRouteType(newModel.value, NEW_ROUTE_TYPES[id]);
             });
         }
-        newModel.addEventListener("change", showNewRouteTypes);
+        // the model chosen last time, kept in this browser (a model no longer listed is ignored)
+        var MODEL_KEY = "mission-planner:model";
+        try {
+            var kept = window.localStorage.getItem(MODEL_KEY);
+            if (kept && [].some.call(newModel.options, function (o) { return o.value === kept; })) newModel.value = kept;
+        } catch (e) { /* no storage (a private window, blocked site data): the first model */ }
+        newModel.addEventListener("change", function () {
+            try { window.localStorage.setItem(MODEL_KEY, newModel.value); } catch (e) { /* kept for this visit only */ }
+            showNewRouteTypes();
+        });
         showNewRouteTypes();
 
         // A new route of the type, named by the user, opened in its editor; settings: the new route's, if any
