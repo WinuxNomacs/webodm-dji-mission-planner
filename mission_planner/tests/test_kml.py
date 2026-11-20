@@ -105,6 +105,13 @@ class TestWriting(SimpleTestCase):
         self.assertEqual(coords, ["1,2 3,2 3,4 1,2", "1,2,300.5 3,4,301"])
         self.assertEqual([e.text for e in root.iter("{%s}altitudeMode" % NS)], ["absolute"])
 
+    def test_without_the_path_in_the_air_only_the_shape_is_written(self):
+        # a slope or geometric route's path needs the geoid grid (air.ellipsoidal gives None without it)
+        text = kml.write_kml("R", ("polygon", [(1.0, 2.0), (3.0, 2.0), (3.0, 4.0)]), None)
+        self.assertNotIn("Flight path", text)
+        self.assertIn("The flight path could not be drawn", text)
+        self.assertEqual(text.count("<Polygon>"), 1)
+
     def test_without_heights_above_sea_level_the_path_is_drawn_above_the_ground(self):
         text = kml.write_kml("R", ("points", [(1, 2), (3, 4)]), {"reference": "takeoff", "paths": [[[1, 2, 60], [3, 4, 60]]]})
         self.assertIn("<altitudeMode>relativeToGround</altitudeMode>", text)
