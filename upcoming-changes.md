@@ -14,7 +14,7 @@ to its title.
 2. **Phase 22: a sharper 3D ground** (the user, 2026-11-20): buildings and trees drawn closer to their real outlines
    and easier to read, without slowing the 3D view. Started as "1 m blocks like Minecraft"; after the user's
    screenshot (a building's lidar block larger than its roof in the imagery, grass draped on its top edges) the aim is
-   definition by sensible, reliable means. To discuss: the "Phase 22" section.
+   definition by sensible, reliable means. Planned (the "Phase 22" section); its first step measures.
 
 Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
 commits, then make it public.
@@ -947,7 +947,7 @@ and after.
 **Open decisions** (asked once the baseline is in): which loads matter most (the first entry into 3D, a pan in 3D,
 switching back and forth); whether the ground may load in 2D before it is shown; a target, if the user has one.
 
-## Phase 22: a sharper 3D ground (requested 2026-11-20, to discuss)
+## Phase 22: a sharper 3D ground (requested 2026-11-20, planned the same day)
 
 The request (`new.md`, 2026-11-20): "Would the buildings, trees and such look less stretched and blurred if instead
 of being drawn as round stretched image splotches along the curved height, the image was drawn in 1m square block
@@ -1045,6 +1045,16 @@ misses (a chimney or pole narrower than a piece, between two readings).
 - *3D only, or 2D too:* in 2D the elevation tiles are not loaded today (the user's choice: it costs downloads).
 - *What is lost while it shows:* the basemap's roads and labels (or a faint basemap kept over it, the user's choice).
 - Tests: Jest for the panel and the scale; a live check with screenshots in both editors.
+
+**Decided with the user (2026-11-20):**
+- **A 2 m collision margin, up and sideways, in a field of each route's form** (both editors), saved with the route;
+  routes saved without it get 2 m. Shown in feet in imperial. It changes the editors' check only, not the KMZ.
+- **The sideways margin covers the whole path, not only the readings:** each 5 m piece is checked against the
+  highest surface within the margin of the piece itself (the zoom-18 pixels in a band round it), since a 2 m circle
+  at readings 5 m apart would leave 1 m between circles unchecked. With a margin of 0 the band is the piece's own
+  pixels, which also closes today's gap between readings. A piece is flagged where its lowest point is less than the
+  margin above that highest surface.
+- **Relief in 3D only,** with the photo kept faint over it (its roads and labels still readable).
 
 ## Lidar regions: Phases 23-25 (planned 2026-11-20, kept for later)
 
