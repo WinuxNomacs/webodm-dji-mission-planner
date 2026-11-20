@@ -114,6 +114,15 @@ class TestTheFile(SimpleTestCase):
         with self.assertRaisesRegex(wpml.ExportError, "Fetch the terrain"):
             djifly.route_points("area", plan, s)
 
+    def test_agl_heights_over_lidar_terrain_follow_each_leg_from_the_lowest_ground_near_the_takeoff_point(self):
+        plan, s = area(height_mode="realTimeFollowSurface")
+        tif, name = area_kmz.dsm()[0], "e39c8a7e_wgs84_LIDAR10M_N41W080_dem.tif"
+        points = djifly.route_points("area", plan, s, tif, terrain_name=name)
+        at = [(p["lon"], p["lat"]) for p in points]
+        grounds = terrain.flown_ground_heights(tif, at, name)
+        base = terrain.lowest_ground_near(tif, s.takeoff_ref_point[1], s.takeoff_ref_point[0])
+        self.assertEqual([round(p["height"], 6) for p in points], [round(40 + g - base, 6) for g in grounds])
+
     def test_a_long_route_is_split_into_missions_that_meet(self):
         points = [{"lon": i * 1e-4, "lat": 0.0, "height": 50.0, "photo": True, "pitch": -90.0, "heading": None, "hover": 0}
                   for i in range(450)]

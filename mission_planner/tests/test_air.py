@@ -10,14 +10,22 @@ from django.test import Client
 
 from .. import api as mission_planner_api
 from .. import routes
-from ..missions import air, geoid, geometric, linear, slope, wpml
+from ..missions import air, geoid, geometric, linear, slope, terrain, wpml
 from app.plugins import disable_plugin, enable_plugin
 from app.tests.classes import BootTestCase
 from .test_mission_planner_plugin import API, body, terrain_info, terrain_tif
+from .test_mission_terrain import geotiff
 from .test_mission_planning import LAT0, LON0
 from . import test_mission_geometric, test_mission_linear, test_mission_slope, test_mission_waypoints
 
 TAKEOFF = [LAT0, LON0, 215.5]
+LIDAR_NAME = "e39c8a7e_wgs84_LIDAR10M_N42W086_dem.tif"
+
+
+def rough_terrain():
+    """A 0.02 x 0.02 degree terrain round the test route, its heights all different (180 to 240 m)"""
+    import numpy as np
+    return geotiff(180.0 + np.random.default_rng(7).integers(0, 60, (72, 72)), dtype="int16", west=LON0 - 0.01, north=LAT0 + 0.01)
 
 
 def area(**over):
@@ -87,6 +95,19 @@ class TestAreaRoute(BootTestCase):
         result = air.area(plan, s, terrain_tif(ground=180.0))
         n = middle(plan.nadir.waypoints)
         self.assertEqual([p[2] for p in result["paths"][0]], [round(h - n, 2) for h in dsm.heights[0]])
+
+    def test_agl_over_lidar_terrain_follows_its_highest_ground_along_each_leg_as_exported(self):
+        plan, s = area(height_mode="realTimeFollowSurface", surface_follow="dsm")
+        tif = rough_terrain()
+        dsm = wpml.dsm_of(plan, s, tif, LIDAR_NAME)
+        result = air.area(plan, s, tif, LIDAR_NAME)
+        n = middle(plan.nadir.waypoints)
+        path = result["paths"][0]
+        self.assertEqual([p[2] for p in path], [round(h - n, 2) for h in dsm.heights[0]])
+        self.assertEqual(dsm.heights[0], [round(g + s.height, 3) for g in terrain.flown_ground_heights(tif, plan.nadir.waypoints, LIDAR_NAME)])
+        at = {(p[0], p[1]): p[2] for p in path}
+        self.assertTrue(all(d[2] == at[(d[0], d[1])] for d in result["drops"]))        # the lines down from the path's own heights
+        self.assertNotEqual(air.area(plan, s, tif, "wgs84_COP30_N42W086_dem.tif")["paths"], result["paths"])
 
     def test_agl_over_the_terrain_without_the_terrain_is_above_the_surface(self):
         plan, s = area(height_mode="realTimeFollowSurface", surface_follow="dsm")
