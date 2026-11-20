@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- No more false collisions in Brave: the heights of the surface are read from its tiles without a canvas, whose
+  pixels Brave alters slightly against fingerprinting (one step in a tile's red is 256 m, so the route showed red far
+  above everything).
 - Esri's satellite basemap and OpenStreetMap show on a WebODM served over plain http: basemap URLs starting `//`
   load over https (their http answers are redirects the browser refuses), except the instance's own server and local
   addresses.
