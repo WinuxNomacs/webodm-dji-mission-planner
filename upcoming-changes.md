@@ -8,7 +8,13 @@ to its title.
 
 **Up next**
 
-Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
+1. **Phase 20: lidar regions** (planned 2026-11-20): the lidar code made pluggable by region, the US its first
+   region, with no change in what it builds. Details in the "Lidar regions" section.
+2. **Phase 21: England** (planned 2026-11-20): the Environment Agency's 1 m surface as a region (Tower Bridge).
+3. **Phase 22: Canada** (planned 2026-11-20): Natural Resources Canada's 1 m surface as a region (Canmore; Lake
+   Louise, which it does not cover, for the fallback).
+
+Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
 commits, then make it public.
 
 Releases: 1.0.0 was merged on 2026-11-17 but never published (the plugin was for development only then). 2.0.0, the
@@ -25,6 +31,9 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    is in the Phase 5 section.
 2. **Mavic 3M multispectral** (the user, 2026-11-19: after 15b): the `narrow_band` lens as a third camera choice,
    once a real M3M file or a DJI source confirms its name and payload sub value.
+3. **Scotland, Wales and Northern Ireland** (the user, 2026-11-20: England first): each nation's lidar as a region,
+   once its service is vetted (the Scottish Remote Sensing Portal, Natural Resources Wales through DataMapWales,
+   OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
 **Done**
 - **Phase 19: true distances in area and linear routes** (2026-11-20, `phase-19-local-frame`): `planning.local_transformers`
@@ -844,6 +853,120 @@ the fetch on picking the takeoff point (244 m, the route drawn at 294 m in 3D), 
 fetch keeps the new point's height, no fetch on opening a waypoint route in ASL, a failed automatic fetch shown in
 the hint with no dialog, Fetch from elevation data clearing the hints; routes deleted.
 
+
+## Lidar regions: Phases 20-22 (planned 2026-11-20)
+
+The request (the user, 2026-11-20): USGS lidar covers only the US; add Canada and the UK, as pluggable regions so
+that more can be added. Samples: Tower Bridge (London) for the UK, the Lake Louise area for Canada.
+
+**What is US-specific today** (read 2026-11-20). A lidar unit (a zoom-15 web map tile) ends as `dsm.tif`: 1 m cells
+on the unit's EPSG:3857 grid with its overlap, the highest return per cell, heights in the source's sea-level datum.
+Everything after that file is the same for any source: `make_tiles` (the 3D view's Terrarium tiles, feathered into
+AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` (lowest lidar against AWS's terrain,
+5 m). The US is in:
+- `lidar.py`: `index`/`project_for` (the hobuinc USGS index) and `build_unit` running PDAL on the project's EPT;
+- `lidar_terrain.py`: `in_conus` and `geoid.navd88_shift` (GEOID18 and NAD83(2011) to WGS84), and its reasons'
+  wording ("no USGS lidar here", "outside the conterminous US");
+- text: `lidar_surface.js` (its attribution), `layers_panel.js`, `settings.html`, the editors' help and button titles
+  (`planner.html`, `waypoint_planner.html`), `planner_core.js`'s comment, README.
+
+**Vetted 2026-11-20** (primary sources and live requests from this machine):
+- **England**: the Environment Agency's LIDAR Composite First Return DSM 1m (2022 composite of 2016-2022 surveys,
+  about 99% of England; data.gov.uk). WCS 2.0.1 at
+  `https://environment.data.gov.uk/spatialdata/lidar-composite-digital-surface-model-first-return-dsm-1m/wcs`,
+  coverage `df4e3ec3-315e-48aa-aaaf-b5ae74d7b2bb__Lidar_Composite_Elevation_FZ_DSM_1m`, Fees NONE, AccessConstraints
+  NONE, no key; Open Government Licence (attribution: Environment Agency copyright). GetCoverage with `subset=E(..)`
+  and `subset=N(..)` in EPSG:27700 returned a 1 m float32 GeoTIFF, EPSG:27700, nodata -3.4e38, in about 1.3 s for
+  200 x 200 m. Tower Bridge (250 x 350 m): every cell set, 1.9 to 70.5 m (the towers). Heights ODN (from training
+  knowledge: to check in Phase 21's first step). Older composites (2017, 2020) were retired from the same platform:
+  the coverage id may change with a new composite. Not checked: the largest size a request accepts, any rate limit.
+- **Canada**: Natural Resources Canada's HRDEM Mosaic 1m (CanElevation), DSM and DTM as cloud-optimized GeoTIFFs in
+  the public AWS bucket `canelevation-dem` (ca-central-1), one 500 km tile per item in the STAC API
+  `https://datacube.services.geo.ca/pgstac/api` (collection `hrdem-mosaic-1m`; `/stac/api` answers too). The
+  collection says: lidar-derived, CGVD2013 heights, reprojected to EPSG:3979, the newest source wins where they
+  overlap. Licence OGL-Canada-2.0. Read with rasterio over HTTP (`/vsicurl/`, a window): float32, nodata -32767, a
+  200 x 200 m window in 0.8 s. Coverage only where lidar was flown: **Lake Louise, Field, Lake O'Hara, Kicking Horse
+  Pass and Banff town have none** (the mosaic's DSM and DTM empty there, and no project in the point-cloud index
+  `Index_LiDARprojects_projetslidar` dated 2026-11-19); Canmore (100%), Golden (100%) and Radium (88%) are covered. The
+  tiles keep a `coverage.gpkg` and an `extent.geojson`. The point clouds (COPC, bucket
+  `canelevation-lidar-point-clouds`) are not needed: the mosaic is already a 1 m DSM.
+- **Geoid grids** on cdn.proj.org (where `geoid.py` already downloads EGM96 and GEOID18): `uk_os_OSGM15_GB.tif`
+  (1,540,925 bytes, BSD-2-Clause per `uk_os_README.txt`), `uk_os_OSTN15_NTv2_OSGBtoETRS.tif` (3,035,814 bytes; the
+  OSGB36 to ETRS89 shift), `ca_nrc_CGG2013an83.tif` (11,031,336 bytes, OGL-Canada per `ca_nrc_README.txt`). Which
+  grid PROJ picks for each pipeline is captured in each phase's first step.
+
+**The design.**
+- **A region** answers four things: whether it may cover a unit (a coarse box, then its own coverage lookup), how a
+  unit's `dsm.tif` is made, how its heights reach the WGS84 ellipsoid (a geoid grid from cdn.proj.org with its size
+  and sha256, and the frames), and its credit line. Regions are entries in `mission_planner/regions.json` (read and
+  checked like `drones.json`): `id`, `name`, `box`, `kind`, the kind's settings (URLs, coverage id, CRS), `geoid`
+  (grid, size, sha256, pipeline), `attribution`.
+- **Kinds** are code, written once each: `ept` (the USGS index and PDAL, today's code), `stac-cog` (Canada: a STAC
+  search, a window of the COG), `wcs` (England: a GetCoverage of the unit's bounds). The two raster kinds reproject
+  into the unit's grid with `Resampling.max`, so a roof or a tree is never lowered by the resampling. A new region
+  of an existing kind is an entry and a test with its sample; a new kind of service needs code.
+- **Choosing a region**: a unit takes the first region in the file whose box holds the unit's centre and whose
+  source has data there; a region with no data passes to the next (the US and Canada overlap at the border). The
+  unit's state records its region (`"region": "us"`); a unit built before has none and is read as `us`. Nothing is
+  migrated or rebuilt.
+- **Heights**: the DSM keeps the region's sea-level datum (as the US keeps NAVD88: the 3D view draws it beside
+  AWS's terrain, which is near EGM96). `lidar_terrain.from_units` converts each unit with its own region's pipeline
+  (`geoid.shift(region, lons, lats)`, generalising `navd88_shift`), so one route may span units of two regions.
+  `in_conus` goes: a route outside every region's box falls back to COP30 with "no lidar region covers this route";
+  units without lidar are filled from COP30 as holes are today.
+- **The datum check** stays for every region (it catches a source in another datum or in ellipsoidal heights).
+- **Text**: reasons name the region ("no Canadian lidar here", "the CGVD2013 grid could not be had"); the 3D
+  view's attribution lists the regions whose units it shows; the help texts say "where public lidar covers the route
+  (most of the US, England, parts of Canada)". README gets a table of regions, sources, licences and datums.
+- **Failures** (the worker builds units unattended; each ends in the unit's state, then COP30 for its cells, as
+  today): the service or catalogue unreachable, slow (a deadline per request), answering 4xx/5xx or an error
+  document instead of a GeoTIFF; a GeoTIFF that does not read, has an unexpected CRS or is empty (state `none`); the
+  STAC search answering no item or an item without a `dsm` asset; the geoid grid not to be had (the terrain says
+  why, the 3D view is unaffected); the disk full; a coverage id retired (England: the WCS answers an error, every
+  unit `failed` with the message, retried after `RETRY_AFTER`). `regions.json` invalid fails the tests, not the
+  server. Each failure gets a test that injects it.
+- **Fixtures**: small DSM cuts saved from the live services (Tower Bridge, Canmore, an empty Lake Louise answer),
+  a few hundred KB each, kept under `tests/fixtures/lidar/<region>/`. These are public landmarks chosen by the user,
+  not places anyone flew: the rule in CLAUDE.md that moves fixtures off real places is about flight samples, and its
+  wording is made to say so in Phase 21. No live service is called by the tests (`tests/__init__.py` refuses it, as
+  it refuses the lidar builds).
+
+**Phase 20: lidar regions** (US only; no visible change but reasons' wording)
+1. `regions.json` with the US entry; `missions/regions.py` (read, check, `region_for(unit)`, the kinds' registry);
+   `lidar.build_unit` asks the unit's region to make its DSM and records the region; `ept` kind from today's code;
+   `geoid.shift` from `navd88_shift`; `lidar_terrain` per unit's region, `in_conus` replaced by the regions' boxes.
+2. Tests: every existing lidar, lidar terrain and geoid test passes unchanged (but the reasons' wording); new tests
+   for the registry (an invalid file, overlap order, an old state without region, a region with no data passing to
+   the next). Live: `lidar_check.js`, `lidar_terrain_check.js` and `collide2d_check.js` give today's results on the
+   Illinois sample, and Paris still says no lidar.
+3. Docs: CLAUDE.md (regions.json beside drones.json), README (wording only).
+
+**Phase 21: England** (the `wcs` kind)
+1. Capture first: Tower Bridge's GetCoverage for a whole unit with its overlap (the size and time), the largest
+   request accepted, the error document for a bad request and for a point outside England (sea off Kent), the PROJ
+   pipeline for EPSG:27700+5701 to EPSG:4979 with OSTN15 and OSGM15 (and its result at Tower Bridge against OS's own
+   transformation, if a public check point is found), and the offset between ETRS89 and WGS84 there (expected under
+   a metre: training knowledge).
+2. The `wcs` kind and the England entry; tests with the captured answers (a unit built from Tower Bridge's cut, its
+   terrain's heights, the sea answer as `none`, each failure above).
+3. Live: an AGL area route over Tower Bridge: the 3D view shows the towers, the terrain says lidar (England), the
+   KMZ's DSM; a route over the Channel says no lidar. About 2 OpenTopography calls (COP30 for the fallback).
+4. CLAUDE.md's fixture rule says it is about flight samples; README; CHANGELOG (Unreleased).
+
+**Phase 22: Canada** (the `stac-cog` kind)
+1. Capture first: the STAC answer and a unit's window at Canmore, the answer at Lake Louise (an item whose window is
+   all nodata), the PROJ pipeline for EPSG:3979 + CGVD2013 to EPSG:4979 (CGG2013a, and NAD83(CSRS) to WGS84 at the
+   current epoch, as GEOID18's Helmert step), checked against NRCan's GPS-H at a point if it answers.
+2. The `stac-cog` kind and the Canada entry (after the US in the file); tests with the captured answers (Canmore's
+   unit and terrain, Lake Louise as `none` and COP30 with "no Canadian lidar here", a border unit taken by the US
+   where both cover it, each failure above).
+3. Live: AGL routes at Canmore (lidar) and Lake Louise (COP30, with the reason); the 3D view's attribution.
+4. README, CHANGELOG (Unreleased).
+
+**Decided with the user (2026-11-20).** Canada's samples: Canmore for the lidar (Lake Louise has none), Lake Louise
+for the fallback. The UK: England now; Scotland, Wales and Northern Ireland under Later, to be vetted. Not a question
+(follows Phase 5): Canada's DSM, not its DTM, as for the US; the bare-earth model would have routes fly closer to
+trees than set.
 
 ## Phase 19: true distances in area and linear routes (planned 2026-11-19, built 2026-11-20)
 
