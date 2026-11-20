@@ -30,8 +30,7 @@ committed: nothing true only on one machine. Keep it short; edit in place.
 - **The repo is public** (from 2026-11-19, Phase 18): the KMZ test fixtures were moved off the places they were
   flown, each place due east by its own fixed offset (where EGM96 matches, so Pilot 2's heights still agree), and
   their author emails replaced. A new fixture gets the same treatment before it is committed: no real place, email,
-  name or serial number in it, and the offsets are never written down. Phase 18's fresh public history (`main` as
-  one new commit) is a force-push the user allowed for that task only. The plugin is installed from the release zip (Administration > Plugins), not listed in WebODM-Plugins.
+  name or serial number in it, and the offsets are never written down. The plugin is installed from the release zip (Administration > Plugins), not listed in WebODM-Plugins.
 - **Never push and never tag.** Nothing is published by a push (no CI). A release: Claude first reviews the code
   changed since the last release for bugs and UI breakdowns that would hurt the user's experience (every page,
   panel and dialog a change touches, on both stacks), fixes what it finds on its own branches and merges them;
