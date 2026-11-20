@@ -237,6 +237,7 @@
         if (points) points.setData(data ? data.waypoints : EMPTY);
         state.air = data && data.air ? data.air : null;
         if (lidarOn) lidar.ensure(routeBounds());       // the lidar surface around the route, from 2D too
+        if (relief && reliefOn && state.view3d) relief.refresh(lidarBounds());     // the relief's colours round it
         if (route3d) route3d.setAir(state.air, state.takeoff ? [state.takeoff[1], state.takeoff[0]] : null);
         showDraped();
     }
@@ -284,6 +285,10 @@
     var LIDAR_KEY = "mission-planner:lidar";
     var lidarOn = true;
     try { lidarOn = window.localStorage.getItem(LIDAR_KEY) !== "off"; } catch (e) { /* on */ }
+    // The 3D view's Relief (relief.js): off unless turned on in the layers panel, remembered per browser
+    var RELIEF_KEY = "mission-planner:relief";
+    var reliefOn = false, relief = null;
+    try { reliefOn = window.localStorage.getItem(RELIEF_KEY) === "on"; } catch (e) { /* off */ }
     var lidarBar = window.MissionPlannerLidar.createStatusBar(document, map.getContainer());
     var lidar = window.MissionPlannerLidar.createLidarSurface({
         maplibregl: maplibregl, fetch: fetch.bind(window), api: API, csrf: csrf, onStatus: lidarBar.show,
@@ -291,6 +296,7 @@
             var dem = map.getSource("mp-dem");
             if (dem && lidarOn && dem.setTiles) dem.setTiles(tiles);
             if (route3d) route3d.refresh();     // the route checked against the lidar's surface now
+            if (relief && reliefOn && state.view3d) relief.refresh(lidarBounds());  // its colours from the lidar's heights
             measure.reread();                   // and the Pointer tool's dots read from it
         }
     });
@@ -313,6 +319,7 @@
 
     // The 3D view's ground, with its hillshade: the lidar surface, or AWS's terrain tiles when it is off
     function showGround3d() {
+        if (relief) relief.apply(false);        // its layer off the source before the source goes
         map.setTerrain(null);
         if (map.getLayer("mp-hillshade")) map.removeLayer("mp-hillshade");
         if (map.getSource("mp-dem")) map.removeSource("mp-dem");
@@ -320,6 +327,7 @@
         map.addLayer({id: "mp-hillshade", type: "hillshade", source: "mp-dem", paint: {"hillshade-exaggeration": 0.35}}, "mp-lines");
         map.setTerrain({source: "mp-dem", exaggeration: 1});
         if (lidarOn) lidar.request(lidarBounds()); else lidar.stop();
+        if (relief && reliefOn) relief.apply(true, lidarBounds());
     }
 
     // The height under the pointer (pointer_height.js), in 2D and 3D, read from the same tiles as the 3D view's ground
@@ -328,6 +336,7 @@
         load: function (z, x, y) { return lidar.load({url: "mplidar://" + z + "/" + x + "/" + y}); },
         isBuilt: function (x, y) { return lidarOn && lidar.isBuilt(x, y); }
     });
+    relief = window.MissionPlannerRelief.createRelief({map: map, heightsAt: heightReader.heightsAt});
     var pointerTip = window.MissionPlannerPointerHeight.createPointerTooltip(document, map.getContainer(), {
         heightAt: heightReader.heightAt, units: function () { return unitsSystem; },
         routeAt: function (point) { return route3d ? route3d.routeNear(point) : null; }
@@ -338,6 +347,12 @@
     // The Pointer tool (measure.js): dots with their heights above sea level, read from the same tiles
     var measure = window.MissionPlannerMeasure.createMeasure({maplibregl: maplibregl, map: map, doc: document, before: "mp-takeoff",
                                                              heightAt: heightReader.heightAt, units: function () { return unitsSystem; }});
+
+    function setRelief(on) {
+        reliefOn = on;
+        try { window.localStorage.setItem(RELIEF_KEY, on ? "on" : "off"); } catch (e) { /* not remembered */ }
+        if (relief && state.view3d) relief.apply(on, lidarBounds());
+    }
 
     function setLidar(on) {
         lidarOn = on;
@@ -354,7 +369,8 @@
         if (map.getLayer("mp-basemap")) map.removeLayer("mp-basemap");
         if (map.getSource("mp-basemap")) map.removeSource("mp-basemap");
         map.addSource("mp-basemap", Core.basemapSource(bm, window.location.protocol));
-        map.addLayer({id: "mp-basemap", type: "raster", source: "mp-basemap"}, map.getLayer("mp-hillshade") ? "mp-hillshade" : (map.getLayer("mp-lines") ? "mp-lines" : undefined));
+        map.addLayer({id: "mp-basemap", type: "raster", source: "mp-basemap"}, map.getLayer("mp-relief") ? "mp-relief" : map.getLayer("mp-hillshade") ? "mp-hillshade" : (map.getLayer("mp-lines") ? "mp-lines" : undefined));
+        if (relief) relief.basemapChanged();
         state.basemap = bm.label;
         layersPanel.setSelected(bm.label);
         try { window.localStorage.setItem(BASEMAP_KEY, bm.label); } catch (e) { /* not remembered */ }
@@ -373,6 +389,7 @@
             showGround3d();
             map.easeTo({pitch: 60});
         } else {
+            if (relief) relief.apply(false);
             map.setTerrain(null);
             if (map.getLayer("mp-hillshade")) map.removeLayer("mp-hillshade");
             map.easeTo({pitch: 0, bearing: 0});
@@ -388,7 +405,7 @@
             if (chosen) applyBasemap(chosen);
         },
         onView3d: function (on) { if (on !== state.view3d) setView3d(on); },
-        onLidar: setLidar
+        onLidar: setLidar, relief: reliefOn, onRelief: setRelief
     });
     function LayersControl() {}
     LayersControl.prototype.onAdd = function () { return layersPanel.element; };

@@ -11,6 +11,8 @@
 - The lidar surface is tighter: each lidar point now counts only in its own 1 m cell (it used to raise the cells round
   it too, about 1.4 m beyond every wall and crown), and distant tiles average rather than widen tall things. Lidar
   surfaces built by an earlier version are built again once, the first time they are needed.
+- Relief in the 3D view (layers panel, off by default): the ground coloured by its height round the route, under a
+  stronger shading, with the photo faint over it.
 
 ## 2.0.0 (2026-11-20)
 

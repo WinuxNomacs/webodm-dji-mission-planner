@@ -8,10 +8,12 @@ to its title.
 
 **Up next**
 
-1. **Phase 22: a sharper 3D ground** (the user, 2026-11-20): buildings and trees drawn closer to their real outlines
-   and easier to read, without slowing the 3D view. Started as "1 m blocks like Minecraft"; after the user's
-   screenshot (a building's lidar block larger than its roof in the imagery, grass draped on its top edges) the aim is
-   definition by sensible, reliable means. Planned (the "Phase 22" section); its first step measures.
+1. **Bug: the Esri basemap is blank over http** (found 2026-11-20 in Phase 22's live check): the editors give a basemap
+   URL starting `//` the page's protocol (`Core.basemapSource`); on a WebODM served over plain http (the dev stack, many
+   home and office installs) Esri's `http://server.arcgisonline.com` answers 301 to https without
+   `Access-Control-Allow-Origin`, so MapLibre's fetch is refused and every tile fails (checked with curl: https answers
+   200 with `Access-Control-Allow-Origin: *`). To check which of WebODM's basemaps serve https, then load those over
+   https whatever the page's protocol.
 
 Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
 commits, then make it public.
@@ -48,6 +50,11 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
 **Done**
+- **Phase 22: a sharper 3D ground** (2026-11-20, `phase-22-sharper-ground`): `lidar.py` (each point in its own cell,
+  far tiles averaged, `SURFACE_VERSION`), `pointer_height.js` (`bandMaxes`), `route_3d.js` (collisions with a margin),
+  the "Collision margin" field (both editors' Advanced settings), `relief.js` and the layers panel's "Relief (3D)".
+  Tests: `test_lidar.py` (3), `pointer_height.test.js` (5), `route_3d.test.js` (5), `relief.test.js` (10),
+  `layers_panel.test.js` (2), form and core tests; live `collision_margin_check.js`, `relief_check.js`.
 - **Phase 21: a faster 3D view** (2026-11-20, `phase-21-faster-3d`): `lidar_surface.js` (cut AWS tiles handed to MapLibre
   as `ImageBitmap`s, each zoom-15 parent decoded once, `PARENTS`), `pointer_height.js` (reads such an image). Tests: 4 in
   `lidar_surface.test.js`; `perf_3d_check.js` (live-check skill) measures the 3D view's loads. The user (2026-11-20):
@@ -978,7 +985,7 @@ after a reload. The main thread is idle, and MapLibre requests most of the tiles
 the wait is inside MapLibre, not found yet. MapLibre also warns that one source for both the hillshade and the
 terrain lowers the quality of the drawing (Phase 22).
 
-## Phase 22: a sharper 3D ground (requested 2026-11-20, planned the same day)
+## Phase 22: a sharper 3D ground (requested 2026-11-20, planned and built the same day)
 
 The request (`new.md`, 2026-11-20): "Would the buildings, trees and such look less stretched and blurred if instead
 of being drawn as round stretched image splotches along the curved height, the image was drawn in 1m square block
@@ -1098,6 +1105,16 @@ field in both editors' Advanced settings (`collision_margin`, 2 by default, `Cor
 terrain (`lidar_terrain.py`) is made from the same DSMs at their highest point per 10 m cell, so it changes little: a
 cell beside a wall no longer takes the roof's height from up to 1.4 m away. Live: the user's place rebuilt in about
 25 s; the copy of TestAreaRoute "stays above the surface" at 0 m and "comes within 2 m of the surface in 2 places" at 2 m.
+
+**Step 4, built (2026-11-20):** tried on the user's building in 3D (screenshots compared): MapLibre's multidirectional
+hillshade over the photo lightened and washed it out, and at full strength turned walls and trees black, so the
+photo view keeps its shading (`standard`, 0.35). Relief (`relief.js`): a `color-relief` layer on `mp-dem` under the
+hillshade, five colours (blue to red) over the heights read on a 21 x 21 grid over the route and 100 m round it (the
+lowest and highest 2% left out, at least 10 m apart), at 65%; the hillshade `igor` at 0.5; the photo at 45%. Chosen
+from three versions tried. Timed with `perf_3d_check.js` (`MP_RELIEF=1`): the first switch into 3D and a reload as
+without it; the second switch 5.8 s against 3.7 s and a pan 2.6 against 1.3 s, the difference all WebGL texture
+uploads on SwiftShader (`texSubImage2D`), not the page's code. MapLibre warns that one source for the terrain, the
+hillshade and the relief lowers the drawing's quality; a second source would load every elevation tile twice.
 
 **Decided with the user (2026-11-20):**
 - **A 2 m collision margin, up and sideways, in a field of each route's form** (both editors), saved with the route;

@@ -159,3 +159,25 @@ describe("lidar surface choice", () => {
         expect(seen).toEqual([]);
     });
 });
+
+describe("relief choice", () => {
+    const reliefBox = () => panel.element.querySelector(".mp-layers-relief input[type=checkbox]");
+
+    it("is off unless the page says otherwise, and says what it shows", () => {
+        make();
+        expect(reliefBox().checked).toBe(false);
+        expect(panel.element.querySelector(".mp-layers-relief").textContent).toContain("Relief (3D)");
+        expect(panel.element.querySelector(".mp-layers-relief").title).toContain("coloured by its height");
+        make({relief: true});
+        expect(reliefBox().checked).toBe(true);
+    });
+
+    it("tells the page when it is turned on or off, and can be set without telling it back", () => {
+        const seen = [];
+        make({onRelief: on => seen.push(on)});
+        reliefBox().click();
+        panel.setRelief(false);
+        expect(reliefBox().checked).toBe(false);
+        expect(seen).toEqual([true]);
+    });
+});

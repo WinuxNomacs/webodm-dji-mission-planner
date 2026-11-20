@@ -6,7 +6,8 @@
 // 3D again), a reload with the browser's cache warm, and a pan in 3D. Each is timed from the click to the map's last
 // "idle" (everything loaded and drawn, nothing more for 1.5 s), with the requests (count and bytes by host) and the
 // main thread's long tasks. MP_PROFILE=1 also prints where the main thread spent its time,
-// MP_TRACE=1 each request's start and end, MP_SHOTS=<folder> a screenshot after the first switch into 3D. Prints a table of medians over the runs. Deletes its route.
+// MP_TRACE=1 each request's start and end, MP_SHOTS=<folder> a screenshot after the first switch into 3D,
+// MP_RELIEF=1 the same with the Relief on. Prints a table of medians over the runs. Deletes its route.
 const path = require('path');
 const fs = require('fs');
 const repo = path.join(__dirname, '../../..');
@@ -157,6 +158,7 @@ async function oneRun(browser, id, lidar) {
   await context.addInitScript(INIT);
   const page = await login(context);
   await page.evaluate(v => localStorage.setItem('mission-planner:lidar', v), lidar);
+  await page.evaluate(on => { if (on) localStorage.setItem('mission-planner:relief', 'on'); else localStorage.removeItem('mission-planner:relief'); }, !!process.env.MP_RELIEF);
   const reqs = watchRequests(page);
   const open = async () => {
     await page.goto(base + '/plugins/' + SLUG + '/route/' + id);
