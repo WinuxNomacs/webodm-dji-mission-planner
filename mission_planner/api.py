@@ -398,6 +398,7 @@ class MissionView(APIView):
 
     def load(self, request, strict=False):
         kind, plan, s = self.planned(request, strict)
+        check_route_type(kind, s.model)     # what the editors cannot ask for, a hand-made request can
         if djifly.is_djifly(s.model):
             djifly.check(kind, s)       # what DJI Fly cannot fly is said when the route is planned, not only on export
         return kind, plan, s

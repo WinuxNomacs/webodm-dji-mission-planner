@@ -16,6 +16,7 @@ from app.plugins import disable_plugin, enable_plugin
 from app.tests.classes import BootTestCase
 from . import test_mission_kmz_import as area_kmz
 from . import test_mission_linear as linear_kmz
+from . import test_mission_slope as slope_kmz
 from . import test_mission_waypoints as waypoint_kmz
 
 API = "/api/plugins/mission_planner/"
@@ -200,6 +201,14 @@ class TestApi(BootTestCase):
         self.assertGreater(len(names), 1)
         self.assertTrue(all(re.fullmatch(r"Farm_\d+_of_%d\.kmz" % len(names), n) for n in names), names)
         self.assertIn("Split into", res["X-Mission-Warnings"])
+
+    def test_a_route_type_the_drone_is_not_offered_is_refused_when_planned_or_exported(self):
+        for model, cameras in (("mini4pro", ["visable"]), ("m30", ["visable"])):
+            for path in ("plan", "export", "kml"):
+                with self.subTest(model=model, path=path):
+                    res = self.post(path, slope_kmz.body(model=model, cameras=cameras))
+                    self.assertEqual(res.status_code, 400, res.content[:300])
+                    self.assertIn("not offered slope routes", res.json()["error"])
 
     def test_oblique_on_a_dji_fly_drone_is_refused_when_planned(self):
         body = dict(area_kmz.oblique(model="air3s", cameras=["visable"], height_mode="relativeToStartPoint"), route_type="area")
