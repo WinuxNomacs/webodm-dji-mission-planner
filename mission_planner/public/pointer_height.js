@@ -1,0 +1,148 @@
+// The height under the pointer on the editors' map: a small tooltip beside the pointer, in 2D and 3D, with the height
+// above sea level ("216.2 m ASL") of the surface right under it (over the route's line, also the route's height
+// above it there: "216.2 m ASL, route 38.0 m above"), read from the same Terrarium tiles the 3D view raises the ground
+// with (lidar_surface.js): the lidar surface's zoom-18 tile where its unit is built (the top of trees and roofs),
+// else AWS's zoom-15 tile (the shape of the ground). Plain ES5, the browser's parts passed in, so that it can be
+// tested.
+(function (root) {
+    var TILE = 256, UNIT_ZOOM = 15, LIDAR_ZOOM = 18, CACHE = 24, AT_ONCE = 4, M_TO_FT = 3.28084;
+
+    // The tile of zoom z a point lies in, and the pixel in it: {x, y, px, py}
+    function tileAt(lng, lat, z) {
+        var n = Math.pow(2, z), s = Math.sin(Math.max(Math.min(lat, 85), -85) * Math.PI / 180);
+        var fx = (lng + 180) / 360 * n, fy = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
+        var x = Math.min(Math.floor(fx), n - 1), y = Math.min(Math.floor(fy), n - 1);
+        return {x: x, y: y, px: Math.min(Math.floor((fx - x) * TILE), TILE - 1), py: Math.min(Math.floor((fy - y) * TILE), TILE - 1)};
+    }
+
+    // A Terrarium pixel's height (meters): red * 256 + green + blue / 256 - 32768
+    function decodePixel(rgba, px, py) {
+        var i = (py * TILE + px) * 4;
+        return rgba[i] * 256 + rgba[i + 1] + rgba[i + 2] / 256 - 32768;
+    }
+
+    function formatHeight(meters, system) {
+        return system === "imperial" ? Math.round(meters * M_TO_FT) + " ft" : meters.toFixed(1) + " m";
+    }
+
+    // A tile's PNG bytes as RGBA pixels (256 x 256 x 4). The browser's version; the tests pass their own.
+    function decodeInBrowser(buffer) {
+        return root.createImageBitmap(new root.Blob([buffer], {type: "image/png"})).then(function (image) {
+            var canvas = typeof root.OffscreenCanvas === "function" ? new root.OffscreenCanvas(TILE, TILE) : root.document.createElement("canvas");
+            canvas.width = canvas.height = TILE;
+            var ctx = canvas.getContext("2d", {willReadFrequently: true});
+            ctx.drawImage(image, 0, 0);
+            if (image.close) image.close();
+            return ctx.getImageData(0, 0, TILE, TILE).data;
+        });
+    }
+
+    // opts: {load(z, x, y) -> Promise<{data: ArrayBuffer}>, isBuilt(unitX, unitY) -> bool, decode(buffer) -> Promise<rgba>}
+    // Returns {heightAt(lng, lat) -> Promise<{height, source: "lidar" | "terrain"} | null>,
+    //          heightsAt(points [[lng, lat], ...]) -> Promise<[meters or null, ...]>}
+    function createHeightReader(opts) {
+        var decode = opts.decode || decodeInBrowser;
+        var cache = {}, order = [];
+
+        function pixels(z, x, y) {
+            var key = z + "/" + x + "/" + y;
+            if (!cache[key]) {
+                cache[key] = opts.load(z, x, y).then(function (r) { return decode(r.data); });
+                cache[key].catch(function () { delete cache[key]; });          // a failed tile is tried again later
+                order.push(key);
+                if (order.length > CACHE) delete cache[order.shift()];
+            }
+            return cache[key];
+        }
+
+        // The tile a point is read from: the lidar's where its unit is built, else the terrain's
+        function sourceOf(lng, lat) {
+            var unit = tileAt(lng, lat, UNIT_ZOOM);
+            var lidar = !!opts.isBuilt(unit.x, unit.y);
+            var t = lidar ? tileAt(lng, lat, LIDAR_ZOOM) : unit;
+            t.z = lidar ? LIDAR_ZOOM : UNIT_ZOOM;
+            t.lidar = lidar;
+            return t;
+        }
+
+        function heightAt(lng, lat) {
+            var t = sourceOf(lng, lat);
+            return pixels(t.z, t.x, t.y)
+                .then(function (rgba) { return {height: decodePixel(rgba, t.px, t.py), source: t.lidar ? "lidar" : "terrain"}; })
+                .catch(function () { return null; });
+        }
+
+        // Many points at once (a route's): grouped by tile, AT_ONCE tiles read at a time, so that a large route does
+        // not hold all its tiles at once; null for a point whose tile did not load
+        function heightsAt(points) {
+            var out = points.map(function () { return null; }), groups = {}, keys = [];
+            points.forEach(function (p, i) {
+                var t = sourceOf(p[0], p[1]), key = t.z + "/" + t.x + "/" + t.y;
+                if (!groups[key]) { groups[key] = {t: t, items: []}; keys.push(key); }
+                groups[key].items.push({i: i, px: t.px, py: t.py});
+            });
+            var next = 0;
+            function worker() {
+                if (next >= keys.length) return Promise.resolve();
+                var g = groups[keys[next++]];
+                return pixels(g.t.z, g.t.x, g.t.y).then(function (rgba) {
+                    g.items.forEach(function (it) { out[it.i] = decodePixel(rgba, it.px, it.py); });
+                }, function () { /* its points stay null */ }).then(worker);
+            }
+            var workers = [];
+            for (var w = 0; w < Math.min(AT_ONCE, keys.length); w++) workers.push(worker());
+            return Promise.all(workers).then(function () { return out; });
+        }
+
+        return {heightAt: heightAt, heightsAt: heightsAt};
+    }
+
+    // The tooltip's text: the surface's height, and the route's height above it when the pointer is on the route
+    function tooltipText(surface, system, route) {
+        var text = formatHeight(surface, system) + " ASL";
+        if (route && isFinite(route.height)) {
+            var above = route.height - surface;
+            text += ", route " + formatHeight(Math.abs(above), system) + (above < 0 ? " below" : " above");
+        }
+        return text;
+    }
+
+    // opts: {heightAt(lng, lat), units() -> "metric" | "imperial",
+    //        routeAt(point) -> {lng, lat, height (meters above sea level)} | null: the route under the pointer, if any}
+    // Returns {element, move(point {x, y}, lngLat {lng, lat}), hide()}
+    function createPointerTooltip(doc, container, opts) {
+        var tip = doc.createElement("div");
+        tip.className = "mp-pointer-height";
+        tip.hidden = true;
+        container.appendChild(tip);
+        var asked = 0;
+
+        function hide() {
+            asked++;                                                  // an answer still coming is dropped
+            tip.hidden = true;
+        }
+
+        function move(point, lngLat) {
+            var mine = ++asked;
+            tip.style.left = (point.x + 14) + "px";
+            tip.style.top = (point.y + 14) + "px";
+            var route = opts.routeAt ? opts.routeAt(point) : null;
+            var at = route || lngLat;
+            return opts.heightAt(at.lng, at.lat).then(function (h) {
+                if (mine !== asked) return;
+                if (!h || !isFinite(h.height)) { tip.hidden = true; return; }
+                tip.textContent = tooltipText(h.height, opts.units(), route);
+                tip.classList.toggle("mp-route-below", !!(route && route.height < h.height));
+                tip.setAttribute("data-source", h.source);           // "lidar" or "terrain": not shown, kept small
+                tip.hidden = false;
+            });
+        }
+
+        return {element: tip, move: move, hide: hide};
+    }
+
+    var api = {createHeightReader: createHeightReader, createPointerTooltip: createPointerTooltip, tileAt: tileAt,
+               decodePixel: decodePixel, formatHeight: formatHeight, tooltipText: tooltipText};
+    root.MissionPlannerPointerHeight = api;
+    if (typeof module !== "undefined" && module.exports) module.exports = api;
+})(typeof window !== "undefined" ? window : {});

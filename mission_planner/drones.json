@@ -1,0 +1,496 @@
+{
+  "m4t": {
+    "label": "DJI Matrice 4T",
+    "name": "Matrice 4T",
+    "app": "pilot2",
+    "drone": [99, 1],
+    "payload": 89,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "M4T thermal", "focal_mm": 12.0, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512},
+      {"key": "visable", "label": "M4T wide", "focal_mm": 6.7, "sensor_w_mm": 9.66, "sensor_h_mm": 7.25, "px_w": 4032, "px_h": 3024}
+    ],
+    "route_types": ["area", "linear", "waypoint", "slope", "geometric"],
+    "realtime_follow": true,
+    "source": "Enums and payload sub enums from Pilot 2 exports (thermal alone and the zoom camera never seen in a file). Cameras from a real Matrice 4T's images (EXIF): thermal 640x512 at 12 micrometers; wide 4032x3024, its sensor size from the 24 mm equivalent of the 6.7 mm lens (approximate). Confirmed against Pilot 2 area missions: at 14.02 m it spaced photos 1.0761 m and lines 1.35 m apart for 85% overlap, within 0.1% and 0.3% of these numbers."
+  },
+  "m4e": {
+    "label": "DJI Matrice 4E",
+    "name": "Matrice 4E",
+    "app": "pilot2",
+    "drone": [99, 0],
+    "payload": 88,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "M4E wide", "focal_mm": 12.3, "sensor_w_mm": 17.434630872483222, "sensor_h_mm": 13.062765100671141, "px_w": 5280, "px_h": 3956}
+    ],
+    "route_types": ["area", "linear", "waypoint", "slope", "geometric"],
+    "realtime_follow": true,
+    "source": "Enums from a Pilot 2 Smart 3D mission. Camera from a real Matrice 4E's images: 5280x3956, the 12.3 mm lens with a calibrated focal length of 3725 pixels (EXIF) gives the sensor size (5280 * 12.3 / 3725 by 3956 * 12.3 / 3725 mm, 4/3\"). Agrees with Pilot 2's M4E area missions at 15, 50 and 100 m: the GSD it shows within 0.8%, the line spacing within 0.2%."
+  },
+  "m3e": {
+    "label": "DJI Mavic 3E",
+    "name": "Mavic 3E",
+    "app": "pilot2",
+    "drone": [77, 0],
+    "payload": 66,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "M3E wide", "focal_mm": 12.29, "sensor_w_mm": 17.424, "sensor_h_mm": 13.0548, "px_w": 5280, "px_h": 3956}
+    ],
+    "route_types": ["area", "linear", "waypoint", "slope", "geometric"],
+    "realtime_follow": true,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, 0 as Pilot 2 writes it for a wide-only M4E or M4T mission; lens name visable as DJI's spec (Chinese) and real files write it. Camera: 4/3\" 20 MP, 5280x3956 at 3.3 um (DJI spec page and launch announcement), 12.29 mm (DJI's Mavic 3M manual and FAQ for the same camera); agrees with DJI's GSD of H/37.2 cm/px. Route types: Pilot 2's manual (waypoint, area with oblique, linear, slope) and release notes (geometric, 2024-05-22); real-time terrain follow: DJI's WPML spec (realTimeFollowSurface, Mavic 3E/3T/3M only)."
+  },
+  "m3t": {
+    "label": "DJI Mavic 3T",
+    "name": "Mavic 3T",
+    "app": "pilot2",
+    "drone": [77, 1],
+    "payload": 67,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "M3T thermal", "focal_mm": 9.1, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512},
+      {"key": "visable", "label": "M3T wide", "focal_mm": 4.44, "sensor_w_mm": 6.4, "sensor_h_mm": 4.8, "px_w": 8000, "px_h": 6000}
+    ],
+    "route_types": ["area", "linear", "waypoint", "slope", "geometric"],
+    "realtime_follow": true,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal); lens names visable and ir as DJI's spec (Chinese) and real files write them. Wide: 1/2\" 48 MP, 8000x6000, 24 mm equivalent (DJI spec page): the nominal 6.4x4.8 mm sensor and 4.44 mm from the equivalent. Thermal: 640x512 at 12 um, 40 mm equivalent (DJI spec page), 9.1 mm as DJI states for the Matrice 30T's camera of the same specification. Route types: Pilot 2's manual (waypoint, area with oblique, linear, slope) and release notes (geometric, 2024-05-22); real-time terrain follow: DJI's WPML spec (realTimeFollowSurface, Mavic 3E/3T/3M only)."
+  },
+  "m3m": {
+    "label": "DJI Mavic 3M",
+    "name": "Mavic 3M",
+    "app": "pilot2",
+    "drone": [77, 2],
+    "payload": 68,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "M3M wide", "focal_mm": 12.29, "sensor_w_mm": 17.424, "sensor_h_mm": 13.0548, "px_w": 5280, "px_h": 3956}
+    ],
+    "route_types": ["area", "linear", "waypoint", "slope", "geometric"],
+    "realtime_follow": true,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, 0 as Pilot 2 writes it for a wide-only M4E or M4T mission; lens name visable as DJI's spec (Chinese) and real files write it. Camera: 4/3\" 20 MP, 5280x3956 at 3.3 um (DJI spec page and launch announcement), 12.29 mm (DJI's Mavic 3M manual and FAQ for the same camera); agrees with DJI's GSD of H/37.2 cm/px. The RGB camera only: the multispectral camera waits for a confirmed lens name and payload sub value (upcoming-changes.md, Later). Route types: Pilot 2's manual (waypoint, area with oblique, linear, slope) and release notes (geometric, 2024-05-22); real-time terrain follow: DJI's WPML spec (realTimeFollowSurface, Mavic 3E/3T/3M only)."
+  },
+  "m30": {
+    "label": "DJI Matrice 30",
+    "name": "Matrice 30",
+    "app": "pilot2",
+    "drone": [67, 0],
+    "payload": 52,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "M30 wide", "focal_mm": 4.5, "sensor_w_mm": 6.4, "sensor_h_mm": 4.8, "px_w": 4000, "px_h": 3000}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, 0 as Pilot 2 writes it for a wide-only M4E or M4T mission; lens name visable as DJI's spec (Chinese) and real files write it. Wide: 1/2\" 12 MP, 4000x3000, 4.5 mm (DJI spec page and manual), the nominal 6.4x4.8 mm sensor. Route types: the Matrice 30 manual (waypoint, area with oblique, linear; no slope route); real-time terrain follow not documented for it (DJI's WPML spec names the Mavic 3E/3T/3M only)."
+  },
+  "m30t": {
+    "label": "DJI Matrice 30T",
+    "name": "Matrice 30T",
+    "app": "pilot2",
+    "drone": [67, 1],
+    "payload": 53,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "M30T thermal", "focal_mm": 9.1, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512},
+      {"key": "visable", "label": "M30T wide", "focal_mm": 4.5, "sensor_w_mm": 6.4, "sensor_h_mm": 4.8, "px_w": 4000, "px_h": 3000}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal); lens names visable and ir as DJI's spec (Chinese) and real files write them. Wide: 1/2\" 12 MP, 4000x3000, 4.5 mm (DJI spec page and manual), the nominal 6.4x4.8 mm sensor. Thermal: 640x512 at 12 um, 40 mm equivalent (DJI spec page), 9.1 mm as DJI states for the Matrice 30T's camera of the same specification. Route types: the Matrice 30 manual (waypoint, area with oblique, linear; no slope route); real-time terrain follow not documented for it (DJI's WPML spec names the Mavic 3E/3T/3M only)."
+  },
+  "m3d": {
+    "label": "DJI Matrice 3D",
+    "name": "Matrice 3D",
+    "app": "pilot2",
+    "drone": [91, 0],
+    "payload": 80,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "M3D wide", "focal_mm": 12.29, "sensor_w_mm": 17.424, "sensor_h_mm": 13.0548, "px_w": 5280, "px_h": 3956}
+    ],
+    "route_types": ["area", "linear", "waypoint", "slope", "geometric"],
+    "realtime_follow": false,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, 0 as Pilot 2 writes it for a wide-only M4E or M4T mission; lens name visable as DJI's spec (Chinese) and real files write it. Camera: 4/3\" 20 MP, 5280x3956 at 3.3 um (DJI's Dock 2 spec page and launch announcement), 12.29 mm (DJI's Mavic 3M manual and FAQ for the same camera); agrees with DJI's GSD of H/37.2 cm/px. Route types: dock drones planned in FlightHub 2 (waypoint and area; slope and geometric since 2024-07-18; linear as DJI's WPML spec offers mappingStrip to every model); real-time terrain follow not documented for them."
+  },
+  "m3td": {
+    "label": "DJI Matrice 3TD",
+    "name": "Matrice 3TD",
+    "app": "pilot2",
+    "drone": [91, 1],
+    "payload": 81,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "M3TD thermal", "focal_mm": 9.1, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512},
+      {"key": "visable", "label": "M3TD wide", "focal_mm": 6.72, "sensor_w_mm": 9.7, "sensor_h_mm": 7.27, "px_w": 8064, "px_h": 6048}
+    ],
+    "route_types": ["area", "linear", "waypoint", "slope", "geometric"],
+    "realtime_follow": false,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal); lens names visable and ir as DJI's spec (Chinese) and real files write them. Wide: 1/1.32\" 48 MP, 8064x6048, 24 mm equivalent (DJI's Dock 2 spec page): the nominal 9.70x7.27 mm sensor and 6.72 mm from the equivalent. Thermal: 640x512 at 12 um, 40 mm equivalent (DJI spec page), 9.1 mm as DJI states for the Matrice 30T's camera of the same specification. Route types: dock drones planned in FlightHub 2 (waypoint and area; slope and geometric since 2024-07-18; linear as DJI's WPML spec offers mappingStrip to every model); real-time terrain follow not documented for them."
+  },
+  "m4d": {
+    "label": "DJI Matrice 4D",
+    "name": "Matrice 4D",
+    "app": "pilot2",
+    "drone": [100, 0],
+    "payload": 98,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "M4D wide", "focal_mm": 12.3, "sensor_w_mm": 17.434630872483222, "sensor_h_mm": 13.062765100671141, "px_w": 5280, "px_h": 3956}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, 0 as Pilot 2 writes it for a wide-only M4E or M4T mission; lens name visable as DJI's spec (Chinese) and real files write it. Camera: the Matrice 4E's, measured from its images (DJI's Dock 3 spec page lists the same 4/3\" 20 MP, 5280x3956, 24 mm equivalent). Route types: Pilot 2 and FlightHub 2 (DJI's Dock 3 FAQ and release notes: area and linear; waypoint); slope and geometric not documented; real-time terrain follow not documented for them."
+  },
+  "m4td": {
+    "label": "DJI Matrice 4TD",
+    "name": "Matrice 4TD",
+    "app": "pilot2",
+    "drone": [100, 1],
+    "payload": 99,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "M4TD thermal", "focal_mm": 12.0, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512},
+      {"key": "visable", "label": "M4TD wide", "focal_mm": 6.7, "sensor_w_mm": 9.66, "sensor_h_mm": 7.25, "px_w": 4032, "px_h": 3024}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Enums from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19). payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal); lens names visable and ir as DJI's spec (Chinese) and real files write them. Cameras: the Matrice 4T's, measured from its images (DJI's Dock 3 spec page lists the same 1/1.3\" 48 MP wide at 24 mm equivalent and 640x512 12 um thermal at 53 mm equivalent). Route types: Pilot 2 and FlightHub 2 (DJI's Dock 3 FAQ and release notes: area and linear; waypoint); slope and geometric not documented; real-time terrain follow not documented for them."
+  },
+  "m300-h20": {
+    "label": "DJI M300 RTK, Zenmuse H20",
+    "name": "M300 RTK with the H20",
+    "app": "pilot2",
+    "drone": [60, 0],
+    "payload": 42,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "H20 wide", "focal_mm": 4.5, "sensor_w_mm": 6.36, "sensor_h_mm": 4.767, "px_w": 4056, "px_h": 3040, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide: 1/2.3\" 12 MP, 4056x3040, 4.5 mm, 82.9 degrees diagonal (DJI's H20 spec page and manual), the sensor from the focal length and field of view; DJI's H20 FAQ says the wide camera is the one for mapping."
+  },
+  "m300-h20t": {
+    "label": "DJI M300 RTK, Zenmuse H20T",
+    "name": "M300 RTK with the H20T",
+    "app": "pilot2",
+    "drone": [60, 0],
+    "payload": 43,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "H20T thermal", "focal_mm": 13.5, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512, "lens": "ir"},
+      {"key": "visable", "label": "H20T wide", "focal_mm": 4.5, "sensor_w_mm": 6.36, "sensor_h_mm": 4.767, "px_w": 4056, "px_h": 3040, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide: 1/2.3\" 12 MP, 4056x3040, 4.5 mm, 82.9 degrees diagonal (DJI's H20 spec page and manual), the sensor from the focal length and field of view. Thermal: 640x512 at 12 um, 13.5 mm (DJI)."
+  },
+  "m300-h20n": {
+    "label": "DJI M300 RTK, Zenmuse H20N",
+    "name": "M300 RTK with the H20N",
+    "app": "pilot2",
+    "drone": [60, 0],
+    "payload": 61,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "H20N thermal", "focal_mm": 12.0, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512, "lens": "ir"},
+      {"key": "visable", "label": "H20N wide", "focal_mm": 4.5, "sensor_w_mm": 5.868, "sensor_h_mm": 3.301, "px_w": 1920, "px_h": 1080, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide (starlight): 1/2.7\" 2 MP, 1920x1080, 4.5 mm, 73.6 degrees diagonal (DJI's H20N spec page and manual), the sensor from the focal length and field of view. Thermal: the wide thermal camera, 640x512 at 12 um, 12 mm (DJI); the tele thermal camera is not planned for."
+  },
+  "m300-h30": {
+    "label": "DJI M300 RTK, Zenmuse H30",
+    "name": "M300 RTK with the H30",
+    "app": "pilot2",
+    "drone": [60, 0],
+    "payload": 82,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "H30 wide", "focal_mm": 6.72, "sensor_w_mm": 9.363, "sensor_h_mm": 7.022, "px_w": 4032, "px_h": 3024, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide: 1/1.3\" 48 MP, 6.72 mm, 82.1 degrees diagonal (DJI's H30 spec page and manual), the sensor from the focal length and field of view; photos 4032x3024 as the Matrice 4T's camera of the same class takes them in Pilot 2 mapping missions (DJI lists 8064x6048 or 4032x3024). DJI requires the DJI RC Plus for the H30 series on the M300."
+  },
+  "m300-h30t": {
+    "label": "DJI M300 RTK, Zenmuse H30T",
+    "name": "M300 RTK with the H30T",
+    "app": "pilot2",
+    "drone": [60, 0],
+    "payload": 83,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "H30T thermal", "focal_mm": 24.0, "sensor_w_mm": 15.36, "sensor_h_mm": 12.288, "px_w": 1280, "px_h": 1024, "lens": "ir"},
+      {"key": "visable", "label": "H30T wide", "focal_mm": 6.72, "sensor_w_mm": 9.363, "sensor_h_mm": 7.022, "px_w": 4032, "px_h": 3024, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide: 1/1.3\" 48 MP, 6.72 mm, 82.1 degrees diagonal (DJI's H30 spec page and manual), the sensor from the focal length and field of view; photos 4032x3024 as the Matrice 4T's camera of the same class takes them in Pilot 2 mapping missions (DJI lists 8064x6048 or 4032x3024). Thermal: 1280x1024 at 12 um, 24 mm (DJI). DJI requires the DJI RC Plus for the H30 series on the M300."
+  },
+  "m350-h20": {
+    "label": "DJI M350 RTK, Zenmuse H20",
+    "name": "M350 RTK with the H20",
+    "app": "pilot2",
+    "drone": [89, 0],
+    "payload": 42,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "H20 wide", "focal_mm": 4.5, "sensor_w_mm": 6.36, "sensor_h_mm": 4.767, "px_w": 4056, "px_h": 3040, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide: 1/2.3\" 12 MP, 4056x3040, 4.5 mm, 82.9 degrees diagonal (DJI's H20 spec page and manual), the sensor from the focal length and field of view; DJI's H20 FAQ says the wide camera is the one for mapping."
+  },
+  "m350-h20t": {
+    "label": "DJI M350 RTK, Zenmuse H20T",
+    "name": "M350 RTK with the H20T",
+    "app": "pilot2",
+    "drone": [89, 0],
+    "payload": 43,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "H20T thermal", "focal_mm": 13.5, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512, "lens": "ir"},
+      {"key": "visable", "label": "H20T wide", "focal_mm": 4.5, "sensor_w_mm": 6.36, "sensor_h_mm": 4.767, "px_w": 4056, "px_h": 3040, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide: 1/2.3\" 12 MP, 4056x3040, 4.5 mm, 82.9 degrees diagonal (DJI's H20 spec page and manual), the sensor from the focal length and field of view. Thermal: 640x512 at 12 um, 13.5 mm (DJI)."
+  },
+  "m350-h20n": {
+    "label": "DJI M350 RTK, Zenmuse H20N",
+    "name": "M350 RTK with the H20N",
+    "app": "pilot2",
+    "drone": [89, 0],
+    "payload": 61,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "H20N thermal", "focal_mm": 12.0, "sensor_w_mm": 7.68, "sensor_h_mm": 6.144, "px_w": 640, "px_h": 512, "lens": "ir"},
+      {"key": "visable", "label": "H20N wide", "focal_mm": 4.5, "sensor_w_mm": 5.868, "sensor_h_mm": 3.301, "px_w": 1920, "px_h": 1080, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide (starlight): 1/2.7\" 2 MP, 1920x1080, 4.5 mm, 73.6 degrees diagonal (DJI's H20N spec page and manual), the sensor from the focal length and field of view. Thermal: the wide thermal camera, 640x512 at 12 um, 12 mm (DJI); the tele thermal camera is not planned for."
+  },
+  "m350-h30": {
+    "label": "DJI M350 RTK, Zenmuse H30",
+    "name": "M350 RTK with the H30",
+    "app": "pilot2",
+    "drone": [89, 0],
+    "payload": 82,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "H30 wide", "focal_mm": 6.72, "sensor_w_mm": 9.363, "sensor_h_mm": 7.022, "px_w": 4032, "px_h": 3024, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide: 1/1.3\" 48 MP, 6.72 mm, 82.1 degrees diagonal (DJI's H30 spec page and manual), the sensor from the focal length and field of view; photos 4032x3024 as the Matrice 4T's camera of the same class takes them in Pilot 2 mapping missions (DJI lists 8064x6048 or 4032x3024)."
+  },
+  "m350-h30t": {
+    "label": "DJI M350 RTK, Zenmuse H30T",
+    "name": "M350 RTK with the H30T",
+    "app": "pilot2",
+    "drone": [89, 0],
+    "payload": 83,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0},
+      {"cameras": ["visable", "ir"], "value": 2}
+    ],
+    "cameras": [
+      {"key": "ir", "label": "H30T thermal", "focal_mm": 24.0, "sensor_w_mm": 15.36, "sensor_h_mm": 12.288, "px_w": 1280, "px_h": 1024, "lens": "ir"},
+      {"key": "visable", "label": "H30T wide", "focal_mm": 6.72, "sensor_w_mm": 9.363, "sensor_h_mm": 7.022, "px_w": 4032, "px_h": 3024, "lens": "wide"}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "source": "Drone enum from DJI's WPML spec (Cloud-API-Doc 40.common-element.md, 2024-11-07) and its live Product Support page (2026-11-19), which lists the payload for this aircraft with DJI Pilot 2; payload enum likewise (main gimbal). Lens names wide and ir: DJI's spec lists only zoom, wide and ir as the M300 and M350's lenses (payloadLensIndex), not visable; payloadSubEnumValue, undocumented by DJI, as Pilot 2 writes it for the M4T (0 wide, 2 wide and thermal). Route types: the M300 and M350 manuals (waypoint, mapping with oblique, linear; slope only on the Mavic 3E series per DJI's spec; geometric not documented); terrain follow over an imported DSM (M300 release notes 2021-02-01 and 2023-03-09), real-time follow only on the Mavic 3E series (DJI's spec and Geospatial FAQ). Wide: 1/1.3\" 48 MP, 6.72 mm, 82.1 degrees diagonal (DJI's H30 spec page and manual), the sensor from the focal length and field of view; photos 4032x3024 as the Matrice 4T's camera of the same class takes them in Pilot 2 mapping missions (DJI lists 8064x6048 or 4032x3024). Thermal: 1280x1024 at 12 um, 24 mm (DJI)."
+  },
+  "mini4pro": {
+    "label": "DJI Mini 4 Pro (DJI Fly)",
+    "name": "Mini 4 Pro",
+    "app": "djifly",
+    "drone": [68, 0],
+    "payload": null,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "Mini 4 Pro camera", "focal_mm": 6.9, "sensor_w_mm": 9.6, "sensor_h_mm": 7.2, "px_w": 4000, "px_h": 3000}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "max_speed": 12,
+    "source": "Values from FlyPath's profile (flypath_engine src/flypath_engine/profiles/drones.json, commit 3065acc), as DJI publishes nothing for DJI Fly: drone enum 68 verified by FlyPath against a mission dumped from a DJI RC 2; camera 1/1.3\", 4000x3000 photos. DJI's manual has a Waypoint Flight section. Top speed 12 m/s (FlyPath). The file names no camera: the drone uses the one active (choose the main/wide camera). Route types: DJI Fly's Waypoint Flight (its user manual), area and linear routes written as their waypoints (missions/djifly.py)."
+  },
+  "mini3pro": {
+    "label": "DJI Mini 3 Pro (DJI Fly)",
+    "name": "Mini 3 Pro",
+    "app": "djifly",
+    "drone": [97, 0],
+    "payload": null,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "Mini 3 Pro camera", "focal_mm": 6.9, "sensor_w_mm": 9.6, "sensor_h_mm": 7.2, "px_w": 4000, "px_h": 3000}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "max_speed": 12,
+    "source": "Values from FlyPath's profile (flypath_engine src/flypath_engine/profiles/drones.json, commit 3065acc), as DJI publishes nothing for DJI Fly: drone enum 97 \"community-verified\" by FlyPath; DJI's Mini 3 Pro manual (v1.6) has no Waypoint Flight section, so whether DJI Fly flies it is unconfirmed. Top speed 12 m/s (FlyPath). The file names no camera: the drone uses the one active (choose the main/wide camera). Route types: DJI Fly's Waypoint Flight (its user manual), area and linear routes written as their waypoints (missions/djifly.py)."
+  },
+  "mini5pro": {
+    "label": "DJI Mini 5 Pro (DJI Fly)",
+    "name": "Mini 5 Pro",
+    "app": "djifly",
+    "drone": [68, 0],
+    "payload": null,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "Mini 5 Pro camera", "focal_mm": 8.8, "sensor_w_mm": 13.2, "sensor_h_mm": 8.8, "px_w": 8192, "px_h": 6144}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "max_speed": 15,
+    "source": "Values from FlyPath's profile (flypath_engine src/flypath_engine/profiles/drones.json, commit 3065acc), as DJI publishes nothing for DJI Fly: drone enum 68 \"community-verified\" by FlyPath; camera the generic 1\" values, derived by FlyPath. Top speed 15 m/s (FlyPath). The file names no camera: the drone uses the one active (choose the main/wide camera). Route types: DJI Fly's Waypoint Flight (its user manual), area and linear routes written as their waypoints (missions/djifly.py)."
+  },
+  "air3": {
+    "label": "DJI Air 3 (DJI Fly)",
+    "name": "Air 3",
+    "app": "djifly",
+    "drone": [68, 0],
+    "payload": null,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "Air 3 camera", "focal_mm": 6.9, "sensor_w_mm": 9.6, "sensor_h_mm": 7.2, "px_w": 4000, "px_h": 3000}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "max_speed": 15,
+    "source": "Values from FlyPath's profile (flypath_engine src/flypath_engine/profiles/drones.json, commit 3065acc), as DJI publishes nothing for DJI Fly: drone enum 68 assumed by FlyPath, awaiting a field test. Top speed 15 m/s (FlyPath). The file names no camera: the drone uses the one active (choose the main/wide camera). Route types: DJI Fly's Waypoint Flight (its user manual), area and linear routes written as their waypoints (missions/djifly.py)."
+  },
+  "air3s": {
+    "label": "DJI Air 3S (DJI Fly)",
+    "name": "Air 3S",
+    "app": "djifly",
+    "drone": [68, 0],
+    "payload": null,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "Air 3S camera", "focal_mm": 8.8, "sensor_w_mm": 13.2, "sensor_h_mm": 8.8, "px_w": 8192, "px_h": 6144}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "max_speed": 15,
+    "source": "Values from FlyPath's profile (flypath_engine src/flypath_engine/profiles/drones.json, commit 3065acc), as DJI publishes nothing for DJI Fly: drone enum 68 assumed by FlyPath. Top speed 15 m/s (FlyPath). The file names no camera: the drone uses the one active (choose the main/wide camera). Route types: DJI Fly's Waypoint Flight (its user manual), area and linear routes written as their waypoints (missions/djifly.py)."
+  },
+  "mavic3classic": {
+    "label": "DJI Mavic 3 Classic (DJI Fly)",
+    "name": "Mavic 3 Classic",
+    "app": "djifly",
+    "drone": [68, 0],
+    "payload": null,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "Mavic 3 Classic camera", "focal_mm": 12.29, "sensor_w_mm": 17.3, "sensor_h_mm": 13.0, "px_w": 5280, "px_h": 3956}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "max_speed": 15,
+    "source": "Values from FlyPath's profile (flypath_engine src/flypath_engine/profiles/drones.json, commit 3065acc), as DJI publishes nothing for DJI Fly: drone enum 68 assumed by FlyPath; Waypoint Flight added in its manual v1.2 (2022-12). Top speed 15 m/s (FlyPath). The file names no camera: the drone uses the one active (choose the main/wide camera). Route types: DJI Fly's Waypoint Flight (its user manual), area and linear routes written as their waypoints (missions/djifly.py)."
+  },
+  "mavic4pro": {
+    "label": "DJI Mavic 4 Pro (DJI Fly)",
+    "name": "Mavic 4 Pro",
+    "app": "djifly",
+    "drone": [68, 0],
+    "payload": null,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "Mavic 4 Pro camera", "focal_mm": 14.0, "sensor_w_mm": 17.4, "sensor_h_mm": 13.0, "px_w": 12288, "px_h": 8192}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "max_speed": 15,
+    "source": "Values from FlyPath's profile (flypath_engine src/flypath_engine/profiles/drones.json, commit 3065acc), as DJI publishes nothing for DJI Fly: drone enum 68 assumed by FlyPath; camera an estimate. Top speed 15 m/s (FlyPath). The file names no camera: the drone uses the one active (choose the main/wide camera). Route types: DJI Fly's Waypoint Flight (its user manual), area and linear routes written as their waypoints (missions/djifly.py)."
+  },
+  "litox1": {
+    "label": "DJI Lito X1 (DJI Fly)",
+    "name": "Lito X1",
+    "app": "djifly",
+    "drone": [68, 0],
+    "payload": null,
+    "payload_sub": [
+      {"cameras": ["visable"], "value": 0}
+    ],
+    "cameras": [
+      {"key": "visable", "label": "Lito X1 camera", "focal_mm": 6.7, "sensor_w_mm": 9.6, "sensor_h_mm": 7.2, "px_w": 4032, "px_h": 3024}
+    ],
+    "route_types": ["area", "linear", "waypoint"],
+    "realtime_follow": false,
+    "max_speed": 12,
+    "source": "Values from FlyPath's profile (flypath_engine src/flypath_engine/profiles/drones.json, commit 3065acc), as DJI publishes nothing for DJI Fly: drone enum 68 (flown with the Mini 4 Pro's profile, per FlyPath); camera from a user's EXIF (FC9589). Top speed 12 m/s (FlyPath). The file names no camera: the drone uses the one active (choose the main/wide camera). Route types: DJI Fly's Waypoint Flight (its user manual), area and linear routes written as their waypoints (missions/djifly.py)."
+  }
+}

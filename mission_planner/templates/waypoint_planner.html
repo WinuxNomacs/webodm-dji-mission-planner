@@ -1,0 +1,329 @@
+{% extends "app/plugins/templates/base.html" %}
+{% load settings %}
+{% block content %}
+<link rel="stylesheet" href="{{ public }}node_modules/maplibre-gl/dist/maplibre-gl.css">
+<link rel="stylesheet" href="{{ public }}planner.css">
+
+<div id="mission-planner" data-api="{{ api }}" data-route-id="{{ route_id }}">
+    {% csrf_token %}
+    {{ basemaps|json_script:"mp-basemaps" }}
+    {{ route.name|default:""|json_script:"mp-route-name" }}
+    {{ route.settings|json_script:"mp-route-settings" }}
+    {{ route.model|json_script:"mp-route-model" }}
+    {{ drones|json_script:"mp-drones" }}
+    <aside class="mp-panel">
+        <div class="mp-top-bar" style="background-color: {% theme "secondary" %}; border-bottom: 1px solid {% theme "border" %};">
+            <a href="{{ public }}" class="mp-back" id="mp-back-link"><i class="fa fa-arrow-left"></i> Routes</a>
+            <div class="mp-save-group">
+                <span class="mp-save-status" id="mp-save-status"></span>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-save-button" disabled><i class="fa fa-save"></i> Save</button>
+            </div>
+        </div>
+        <h3>{% if route.settings.shape %}POI route{% else %}Waypoint route{% endif %}</h3>
+
+        <!-- The selected point: its own settings, empty where it takes the route's. Outside mp-form, so that editing it
+             is not a change of the route's settings (waypoint_form.js tells the two apart by the form) -->
+        <form id="mp-point-form" class="mp-point-panel" autocomplete="off" onsubmit="return false;" hidden
+              style="background-color: {% theme "secondary" %}; border-color: {% theme "border" %};">
+            <div class="mp-point-head">
+                <span class="mp-title" id="mp-point-title">Point</span>
+                <button type="button" class="btn btn-default btn-xs" id="mp-point-close" title="Close"><i class="fa fa-times"></i></button>
+            </div>
+            <div class="form-group">
+                <label for="mp-point-height" id="mp-point-height-label">Height (m, empty: the route's)</label>
+                <input type="number" step="any" class="form-control input-sm" id="mp-point-height" name="height">
+            </div>
+            <div class="form-group" id="mp-point-heading-row" hidden>
+                <label for="mp-point-heading">Heading (&deg;, empty: the route's)</label>
+                <input type="number" step="any" class="form-control input-sm" id="mp-point-heading" name="heading" placeholder="0 is north, 90 east">
+            </div>
+            <div class="mp-row">
+                <div class="form-group"><label for="mp-point-pitch">Gimbal pitch (&deg;)</label><input type="number" step="any" class="form-control input-sm" id="mp-point-pitch" name="pitch" placeholder="unchanged"></div>
+                <div class="form-group"><label for="mp-point-hover">Hover (s)</label><input type="number" step="any" class="form-control input-sm" id="mp-point-hover" name="hover" placeholder="none"></div>
+            </div>
+            <div class="checkbox">
+                <label><input type="checkbox" id="mp-point-photo" name="photo"> Take a photo</label>
+            </div>
+            <div class="mp-errors" id="mp-point-errors"></div>
+            <div class="mp-point-actions">
+                <button type="button" class="btn btn-default btn-sm" id="mp-point-insert" title="Add a point halfway to the next one"><i class="fa fa-plus"></i> Insert after</button>
+                <button type="button" class="btn btn-default btn-sm" id="mp-point-delete"><i class="fa fa-trash"></i> Delete</button>
+            </div>
+        </form>
+
+        <form id="mp-form" autocomplete="off" onsubmit="return false;">
+            <div class="mp-section">
+                <div class="form-group">
+                    <label for="mp-name">Mission name</label>
+                    <input type="text" class="form-control input-sm" id="mp-name" name="name" value="luxodm-waypoints">
+                </div>
+            </div>
+
+            <div class="mp-model-badge" id="mp-model-badge">{{ route.get_model_display }}</div>
+            <p class="mp-note">{% if drone.app == "djifly" %}Experimental: use it at your own risk. Open every mission in DJI Fly and check it before flying: it is put on the controller by replacing a mission made there (see the README).{% else %}Experimental: use it at your own risk. Open every mission in DJI Pilot 2 or FlightHub 2 and check it before flying.{% endif %}</p>
+
+            <div class="mp-tools btn-group btn-group-sm">
+                <button type="button" class="btn btn-default active" data-tool="pointer" title="Click the map for the height above sea level there; each next click also shows the difference from the one before. Click a dot to clear them"><i class="fa fa-mouse-pointer"></i> Pointer</button>
+                <button type="button" class="btn btn-default" data-tool="add" title="Click the map to add the points, in the order they are flown"><i class="fa fa-map-marker-alt"></i> Add points</button>
+            </div>
+            <div class="mp-message" id="mp-points-message">Click the map to add the points, in the order they are flown.</div>
+
+            <div class="mp-message mp-collisions" id="mp-collisions" hidden></div>
+
+            <div class="mp-summary">
+                <div><i class="fa fa-map-marker-alt"></i><span id="mp-sum-points">&ndash;</span></div>
+                <div><i class="fa fa-route"></i><span id="mp-sum-length">&ndash;</span></div>
+                <div><i class="fa fa-clock"></i><span id="mp-sum-time">&ndash;</span></div>
+                <div><i class="fa fa-images"></i><span id="mp-sum-photos">&ndash;</span></div>
+            </div>
+
+            {% if route.settings.shape %}
+            <!-- A POI route: the points are made around the subject at the POI; waypoint_form.js reads these as the shape -->
+            <div class="mp-section" id="mp-shape-section">
+                <div class="mp-title">Subject</div>
+                <input type="hidden" id="mp-shape-kind" name="shape_kind" value="circle">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default active" data-shape-seg="kind" data-value="circle" title="A round subject, such as a tower or a tank">Circle</button>
+                    <button type="button" class="btn btn-default" data-shape-seg="kind" data-value="rectangle" title="A building with four sides">Rectangle</button>
+                    <button type="button" class="btn btn-default" data-shape-seg="kind" data-value="outline" title="Draw the subject's outline on the map">Outline</button>
+                </div>
+                <div id="mp-shape-circle-rows">
+                    <div class="form-group">
+                        <label for="mp-shape-radius" id="mp-shape-radius-label">Radius (m)</label>
+                        <input type="number" step="any" class="form-control input-sm" id="mp-shape-radius" name="shape_radius" placeholder="0 for a point">
+                    </div>
+                </div>
+                <div id="mp-shape-rectangle-rows" hidden>
+                    <div class="mp-row">
+                        <div class="form-group"><label for="mp-shape-width" id="mp-shape-width-label">Width (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-shape-width" name="shape_width"></div>
+                        <div class="form-group"><label for="mp-shape-length" id="mp-shape-length-label">Length (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-shape-length" name="shape_length"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="mp-shape-rotation">Rotation (&deg;)</label>
+                        <input type="number" step="any" class="form-control input-sm" id="mp-shape-rotation" name="shape_rotation" placeholder="0: the length runs north">
+                    </div>
+                </div>
+                <div id="mp-shape-outline-rows" hidden>
+                    <button type="button" class="btn btn-default btn-sm" id="mp-shape-draw"><i class="fa fa-draw-polygon"></i> Draw the outline</button>
+                    <button type="button" class="btn btn-default btn-sm" id="mp-shape-finish" hidden>Finish the outline</button>
+                    <span class="mp-note" id="mp-shape-outline-text"></span>
+                    <p class="help-block">Click the subject's corners on the map; the POI moves to its middle.</p>
+                </div>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-shape-height" id="mp-shape-height-label">Height of the subject (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-shape-height" name="shape_height"></div>
+                    <div class="form-group"><label for="mp-shape-distance" id="mp-shape-distance-label">Distance from the subject (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-shape-distance" name="shape_distance"></div>
+                </div>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-shape-count">Points around</label><input type="number" step="1" class="form-control input-sm" id="mp-shape-count" name="shape_count" title="One point every 360/count degrees on the curves"></div>
+                    <div class="form-group"><label for="mp-shape-start">First point at (&deg;)</label><input type="number" step="any" class="form-control input-sm" id="mp-shape-start" name="shape_start" title="Its bearing from the POI; drag the first point to set it"></div>
+                </div>
+                <div class="form-group">
+                    <label for="mp-shape-overlap">Photo overlap (%)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-shape-overlap" name="shape_overlap">
+                </div>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-shape-loops">Loops</label><input type="number" step="1" min="1" class="form-control input-sm" id="mp-shape-loops" name="shape_loops" title="Loops stacked one above the other, bottom up; the lowest flies at the route's height"></div>
+                    <div class="form-group" id="mp-shape-top-row" hidden><label for="mp-shape-top" id="mp-shape-top-label">Highest loop at (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-shape-top" name="shape_top" title="In the route's height mode, as the route's height"></div>
+                </div>
+                <p class="mp-note" id="mp-shape-loops-hint"></p>
+                <div class="mp-errors" id="mp-shape-errors"></div>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-shape-make"><i class="fa fa-sync"></i> Make the points</button>
+                <p class="help-block">The gimbal pitch aims at half the subject's height (with several loops, at the subject level with each loop, or at its top from above), and a photo is taken every few metres for the overlap; both can be changed below. Between loops the aircraft climbs on the spot above the first point. The points can be edited once made.</p>
+            </div>
+            {% endif %}
+
+            <div class="mp-section">
+                <div class="mp-title">Units</div>
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default active" data-units="metric">Metric (m, m/s)</button>
+                    <button type="button" class="btn btn-default" data-units="imperial">Imperial (ft, mph)</button>
+                </div>
+                <p class="help-block">The route is always planned and saved in metric; this only changes what is shown here.</p>
+            </div>
+
+            <div class="mp-section">
+                <button type="button" class="btn btn-primary btn-block" id="mp-takeoff-button"><i class="fa fa-home"></i> <span id="mp-takeoff-text">Reference takeoff point not set</span></button>
+                <div class="form-group mp-takeoff-altitude" id="mp-takeoff-altitude-row" hidden>
+                    <label for="mp-takeoff-altitude" id="mp-takeoff-altitude-label">Ground height at the takeoff point (m above sea level)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-takeoff-altitude" name="takeoff_altitude" placeholder="needed to write the point into the mission">
+                    <input type="hidden" id="mp-takeoff-ellipsoidal-height" name="takeoff_ellipsoidal_height">
+                    <button type="button" class="btn btn-default btn-sm" id="mp-fetch-elevation">Fetch from elevation data</button>
+                    <span class="mp-note" id="mp-elevation-status"></span>
+                    <p class="help-block">Only needed for the ASL height mode, below - ALT and AGL do not use it.</p>
+                </div>
+                <div class="mp-errors mp-asl-hint" id="mp-asl-hint-takeoff" hidden></div>
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-title">Select lens</div>
+                <div class="mp-chips">
+                    <label class="mp-chip"><input type="checkbox" id="mp-lens-visible" name="lens_visible" checked> Visible</label>
+                    <label class="mp-chip"{% if "ir" not in drone.cameras %} hidden{% endif %}><input type="checkbox" id="mp-lens-ir" name="lens_ir" checked> IR</label>
+                </div>
+                {% if "ir" in drone.cameras %}
+                <p class="help-block">{{ drone.name|default:route.model }}: the cameras the photos (and the video) are taken with.</p>
+                {% else %}
+                <p class="help-block">{{ drone.name|default:route.model }}: the wide camera only.</p>
+                {% endif %}
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-title">Height mode</div>
+                <input type="hidden" id="mp-height-mode" name="height_mode" value="alt">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default active" data-seg="height_mode" data-value="alt" title="Above the takeoff point">ALT</button>
+                    <button type="button" class="btn btn-default" data-seg="height_mode" data-value="asl" title="Above sea level (needs the takeoff point's elevation data fetched first, above)">ASL</button>
+                    <button type="button" class="btn btn-default" data-seg="height_mode" data-value="agl" title="Above the ground under each point, from elevation data">AGL</button>
+                </div>
+                <div class="mp-errors mp-asl-hint" id="mp-asl-hint-mode" hidden></div>
+                <div class="form-group">
+                    <label for="mp-height" id="mp-height-label">Height above the takeoff point (m)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-height" name="height">
+                </div>
+                <div class="mp-ground-row" id="mp-ground-row" hidden>
+                    <input type="hidden" id="mp-terrain-source" name="terrain_source" value="lidar">
+                    <div class="mp-segmented mp-terrain-source" id="mp-terrain-source-row">
+                        <button type="button" class="btn btn-default active" data-seg="terrain_source" data-value="lidar" title="The lidar surface: trees and roofs, 10 m cells, where USGS lidar covers the route (else COP30)">Lidar surface (trees, roofs)</button>
+                        <button type="button" class="btn btn-default" data-seg="terrain_source" data-value="cop30" title="Copernicus 30 m: a surface model of the whole world, coarser">COP30</button>
+                    </div>
+                    <button type="button" class="btn btn-default btn-sm" id="mp-fetch-grounds">Fetch the ground heights</button>
+                    <span class="mp-note" id="mp-ground-status"></span>
+                    <p class="help-block">AGL heights are written as heights above the surface under each point, from the route's terrain, fetched around the points: the lidar surface (the highest point of every 10 m, trees and roofs, where USGS lidar covers the conterminous US, up to 4 km²), else OpenTopography's COP30 (at most 10 km on a side); a point that is moved takes its ground again.</p>
+                </div>
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-title">Heading</div>
+                <input type="hidden" id="mp-heading-mode" name="heading_mode" value="followWayline">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default active" data-seg="heading_mode" data-value="followWayline" title="The aircraft faces where it flies">Along the route</button>
+                    <button type="button" class="btn btn-default" data-seg="heading_mode" data-value="manually" title="Each point can set its own heading">Set per point</button>
+                    <button type="button" class="btn btn-default" data-seg="heading_mode" data-value="towardPOI" title="The aircraft faces a point of interest all the way">Toward POI</button>
+                </div>
+                <div class="mp-poi-row" id="mp-poi-row" hidden>
+                    <button type="button" class="btn btn-default btn-sm" id="mp-poi-center" title="Put the POI in the middle of the points">Centre on the points</button>
+                    <span class="mp-note" id="mp-poi-text"></span>
+                    <p class="help-block">Drag the POI marker on the map to move it.</p>
+                </div>
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-title">At the points</div>
+                <input type="hidden" id="mp-turn-mode" name="turn_mode" value="stop">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default active" data-seg="turn_mode" data-value="stop" title="Stop at each point, then turn">Stop and turn</button>
+                    <button type="button" class="btn btn-default" data-seg="turn_mode" data-value="pass" title="Fly through the points without stopping, rounding the corners">Fly through</button>
+                    <button type="button" class="btn btn-default" data-seg="turn_mode" data-value="curve" title="Fly a smooth curve through the points without stopping (the first and last still stop)">Smooth curve</button>
+                </div>
+                <div class="form-group">
+                    <label for="mp-gimbal-pitch">Gimbal pitch (&deg;, empty: unchanged)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-gimbal-pitch" name="gimbal_pitch" placeholder="-90 is straight down">
+                </div>
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-title">Over the route</div>
+                <div class="checkbox">
+                    <label title="Record from the first point to the last"><input type="checkbox" id="mp-video" name="video"> Record video from the first point to the last</label>
+                </div>
+                <input type="hidden" id="mp-interval-mode" name="photo_interval_mode" value="">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default active" data-seg="photo_interval_mode" data-value="" title="Photos only at the points that take one">No interval photos</button>
+                    <button type="button" class="btn btn-default" data-seg="photo_interval_mode" data-value="distance" title="A photo every so many meters, from the first point to the last">Distance</button>
+                    <button type="button" class="btn btn-default" data-seg="photo_interval_mode" data-value="time" title="A photo every so many seconds, from the first point to the last">Time</button>
+                </div>
+                <div class="form-group" id="mp-interval-row" hidden>
+                    <label for="mp-interval" id="mp-interval-label">A photo every (m)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-interval" name="photo_interval">
+                </div>
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-title">Takeoff</div>
+                <input type="hidden" id="mp-takeoff-mode" name="takeoff_mode" value="safe">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default" data-seg="takeoff_mode" data-value="direct" title="Fly straight to the first point">Direct ascent</button>
+                    <button type="button" class="btn btn-default active" data-seg="takeoff_mode" data-value="safe" title="Climb to the safe takeoff altitude first">Safe takeoff</button>
+                </div>
+                <div class="form-group" id="mp-safe-row">
+                    <label for="mp-tsh" id="mp-tsh-label">Safe takeoff altitude (m)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-tsh" name="takeoff_security_height">
+                </div>
+            </div>
+
+            <div class="mp-section">
+                <div class="form-group"><label for="mp-speed" id="mp-speed-label">Flight speed (m/s)</label><input type="number" step="any" class="form-control input-sm" id="mp-speed" name="speed"></div>
+            </div>
+
+            <div class="mp-section">
+                <div class="form-group">
+                    <label for="mp-finish">Upon completion</label>
+                    <select class="form-control input-sm" id="mp-finish" name="finish_action">
+                        <option value="goHome">Return to home</option><option value="autoLand">Land</option>
+                        <option value="gotoFirstWaypoint">Go to the first waypoint</option><option value="noAction">Hover</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="mp-rclost">If remote signal is lost</label>
+                    <select class="form-control input-sm" id="mp-rclost" name="exit_on_rc_lost">
+                        <option value="goContinue">Continue the mission</option><option value="executeLostAction">Return to home</option>
+                    </select>
+                </div>
+            </div>
+
+            <details class="mp-more mp-section">
+                <summary>Advanced settings</summary>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-transitional" id="mp-transitional-label">Takeoff speed (m/s)</label><input type="number" step="any" class="form-control input-sm" id="mp-transitional" name="transitional_speed"></div>
+                    <div class="form-group"><label for="mp-rth" id="mp-rth-label">Return height (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-rth" name="rth_height"></div>
+                </div>
+                <div class="checkbox">
+                    <label title="Avoid the custom geo zones"><input type="checkbox" id="mp-geozone" name="avoid_limit_area"> Custom GEO zone obstacle bypassing</label>
+                </div>
+            </details>
+        </form>
+
+        <div class="mp-errors" id="mp-errors"></div>
+        <div class="mp-results" id="mp-results"></div>
+        <div class="mp-warnings" id="mp-warnings"></div>
+        <button type="button" class="btn btn-primary" id="mp-download" disabled><i class="fa fa-download"></i> Download mission (.kmz)</button>
+        <button type="button" class="btn btn-default" id="mp-download-kml" disabled title="The route's shape and flight path, for Google Earth and other apps (not a mission file)"><i class="fa fa-globe"></i> Download KML</button>
+    </aside>
+    <div id="mp-map"></div>
+
+    <div class="mp-leave-dialog" id="mp-leave-dialog" hidden>
+        <div class="mp-leave-dialog-inner">
+            <h4>Unsaved changes</h4>
+            <p>This route has changes that have not been saved yet.</p>
+            <div class="mp-leave-actions">
+                <button type="button" class="btn btn-default btn-sm" id="mp-leave-discard">Discard</button>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-leave-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="mp-leave-dialog" id="mp-elevation-dialog" hidden>
+        <div class="mp-leave-dialog-inner">
+            <h4>Could not fetch the elevation</h4>
+            <p id="mp-elevation-error"></p>
+            <div class="mp-leave-actions">
+                <button type="button" class="btn btn-default btn-sm" id="mp-elevation-cancel">Cancel</button>
+                <button type="button" class="btn btn-default btn-sm" id="mp-elevation-use-cached">Use cached values</button>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-elevation-retry">Retry</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# maplibre.mjs is a module, so it runs after parsing: the scripts after it are deferred to keep the order #}
+<script type="module" src="{{ public }}maplibre.mjs"></script>
+<script defer src="{{ public }}planner_core.js"></script>
+<script defer src="{{ public }}layers_panel.js"></script>
+<script defer src="{{ public }}lidar_surface.js"></script>
+<script defer src="{{ public }}pointer_height.js"></script>
+<script defer src="{{ public }}measure.js"></script>
+<script defer src="{{ public }}route_3d.js"></script>
+<script defer src="{{ public }}search_panel.js"></script>
+<script defer src="{{ public }}waypoint_form.js"></script>
+<script defer src="{{ public }}waypoint_planner.js"></script>
+{% endblock %}

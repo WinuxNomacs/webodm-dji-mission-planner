@@ -1,0 +1,32 @@
+// ESLint for the plugin's front end: `npm run lint` at the repo root, or the VSCode ESLint extension
+import js from "@eslint/js";
+import globals from "globals";
+
+export default [
+    {ignores: ["**/node_modules/", "**/build/", "**/dist/", "ignored/", ".venv/"]},
+    {
+        // The plugin's pages: plain ES5 scripts, loaded by <script> tags and by Jest (UMD), with MapLibre and terra-draw
+        files: ["mission_planner/public/*.js"],
+        ...js.configs.recommended,
+        languageOptions: {
+            ecmaVersion: 5,
+            sourceType: "script",
+            // ES5 syntax, but the ES2015 Promise the browsers have; module and require are the UMD wrapper's
+            globals: {...globals.browser, Promise: "readonly", module: "readonly", require: "readonly",
+                      maplibregl: "readonly", terraDraw: "readonly", terraDrawMaplibreGlAdapter: "readonly"},
+        },
+        // ES5 has no catch without a binding, so one left unused is no mistake
+        rules: {...js.configs.recommended.rules, "no-unused-vars": ["error", {caughtErrors: "none"}]},
+    },
+    {
+        // maplibre.mjs: the one ES module, which hands MapLibre 6 to the ES5 scripts
+        files: ["mission_planner/public/*.mjs"],
+        ...js.configs.recommended,
+        languageOptions: {ecmaVersion: 2022, sourceType: "module", globals: globals.browser},
+    },
+    {
+        files: ["mission_planner/public/__tests__/**/*.js", "tools/**/*.js"],
+        ...js.configs.recommended,
+        languageOptions: {ecmaVersion: 2022, sourceType: "commonjs", globals: {...globals.browser, ...globals.node, ...globals.jest}},
+    },
+];

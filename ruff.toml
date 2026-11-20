@@ -1,0 +1,12 @@
+# WebODM 4.0.0 runs Python 3.14
+target-version = "py314"
+line-length = 120
+extend-exclude = ["ignored"]
+
+[lint]
+# Style rewrites, not compatibility: the code keeps its %-formatting and import order
+extend-ignore = ["UP031", "UP032", "I001", "RUF046", "UP017", "RUF007"]
+
+[lint.per-file-ignores]
+# The tests moved from LuxODM as they were: style rules only, not their behaviour
+"mission_planner/tests/*" = ["SIM115", "SIM117", "RUF059", "C408", "RUF015", "FURB167", "B023", "SIM905"]

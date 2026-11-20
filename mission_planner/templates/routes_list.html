@@ -1,0 +1,76 @@
+{% extends "app/plugins/templates/base.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{ public }}routes_list.css">
+
+<div id="mp-routes" data-api="{{ api }}" data-public="{{ public }}">
+    {% csrf_token %}
+    {{ drones|json_script:"mp-drones" }}
+    <div class="mp-routes-header">
+        <h3>DJI Mission Planner</h3>
+        <div class="mp-new-route">
+            <label for="mp-new-model">Select Model:</label>
+            <select id="mp-new-model" class="form-control input-sm" title="Aircraft model for the new route">
+                {% for key, d in drones.items %}<option value="{{ key }}">{{ d.label }}</option>
+                {% endfor %}
+            </select>
+            <div class="btn-group">
+                <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+                    <i class="fa fa-plus"></i> New Route <span class="caret"></span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-right">
+                    <li><a href="javascript:void(0);" id="mp-new-area">Area Route</a></li>
+                    <li><a href="javascript:void(0);" id="mp-new-linear">Linear Route</a></li>
+                    <li><a href="javascript:void(0);" id="mp-new-waypoint">Waypoint Route</a></li>
+                    <li><a href="javascript:void(0);" id="mp-new-poi">POI Route</a></li>
+                    <li><a href="javascript:void(0);" id="mp-new-slope" title="A steep face (an embankment, a dam, a quarry wall) mapped square-on">Slope Route</a></li>
+                    <li><a href="javascript:void(0);" id="mp-new-geometric" title="A building or other block mapped all round, its walls square-on">Geometric Route</a></li>
+                    <li role="separator" class="divider"></li>
+                    <li><a href="javascript:void(0);" id="mp-import-kmz" title="An area, linear, slope, geometric or waypoint mission saved by DJI Pilot 2, or a KML or KMZ with a polygon, a line or points (Google Earth, other apps): a new route for the model chosen">Import KMZ or KML file…</a></li>
+                </ul>
+                <input type="file" id="mp-import-file" accept=".kmz,.kml" hidden>
+            </div>
+            {% if is_admin %}
+            <a class="btn btn-default" href="{{ public }}settings" id="mp-settings-link" title="The OpenTopography API key (administrators)"><i class="fa fa-cog"></i> Settings</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mp-message" id="mp-routes-message"></div>
+
+    <table class="table mp-routes-table" id="mp-routes-table" hidden>
+        <thead><tr><th>Name</th><th>Type</th><th>Last updated</th><th></th></tr></thead>
+        <tbody id="mp-routes-body"></tbody>
+    </table>
+
+    <div class="mp-copy-dialog" id="mp-copy-dialog" hidden>
+        <div class="mp-copy-dialog-inner">
+            <h4>Copy route</h4>
+            <p>Copy "<strong id="mp-copy-name"></strong>" for which aircraft?</p>
+            <select id="mp-copy-model" class="form-control input-sm">
+                {% for key, d in drones.items %}<option value="{{ key }}">{{ d.label }}</option>
+                {% endfor %}
+            </select>
+            <p class="help-block" id="mp-copy-note"></p>
+            <div class="mp-copy-actions">
+                <button type="button" class="btn btn-default btn-sm" id="mp-copy-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-copy-confirm">Copy</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="mp-copy-dialog" id="mp-import-dialog" hidden>
+        <div class="mp-copy-dialog-inner">
+            <h4>Route imported</h4>
+            <p>"<strong id="mp-import-name"></strong>" was added to your routes.</p>
+            <dl class="dl-horizontal mp-import-summary" id="mp-import-summary"></dl>
+            <div class="mp-copy-actions">
+                <button type="button" class="btn btn-default btn-sm" id="mp-import-close">Close</button>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-import-open">Open</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ public }}planner_core.js"></script>
+<script src="{{ public }}routes_list.js"></script>
+{% endblock %}

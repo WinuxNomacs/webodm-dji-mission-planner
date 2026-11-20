@@ -1,0 +1,8 @@
+[
+  {"lat": 42.10339, "lon": -85.020388, "geoidHeight": -33.482},
+  {"lat": 42.31, "lon": -83.06, "geoidHeight": -34.564},
+  {"lat": 32.547, "lon": -117.03, "geoidHeight": -34.935},
+  {"lat": 39.0, "lon": -105.0, "geoidHeight": -15.164},
+  {"lat": 45.5, "lon": -122.6, "geoidHeight": -22.785},
+  {"lat": 25.8, "lon": -80.2, "geoidHeight": -25.452}
+]

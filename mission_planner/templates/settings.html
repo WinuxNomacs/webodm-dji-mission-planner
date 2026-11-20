@@ -1,0 +1,94 @@
+{% extends "app/plugins/templates/base.html" %}
+{% block content %}
+<div id="mp-settings" style="max-width: 720px">
+    <h3>DJI Mission Planner settings</h3>
+    <p><a href="{{ public }}" id="mp-settings-back"><i class="fa fa-arrow-left"></i> Back to the routes</a></p>
+
+    <h4>OpenTopography API key</h4>
+    <p>Fetching a route's terrain, its takeoff height and a waypoint route's ground heights uses OpenTopography,
+        with a key from <a href="https://opentopography.org/" target="_blank" rel="noopener">opentopography.org</a>
+        (an account there gives one). The rest of the planner works without one.</p>
+
+    {% if done == "saved" %}
+    <div class="alert alert-success" id="mp-settings-done">The key was tried with OpenTopography and saved.</div>
+    {% elif done == "removed" %}
+    <div class="alert alert-success" id="mp-settings-done">The saved key was removed.</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger" id="mp-settings-error">{{ error }}</div>
+    {% endif %}
+
+    <p id="mp-key-source">
+        {% if source == "environment" %}
+        <strong>Set by WebODM's environment</strong> ({{ env_name }}): it is the key in use, and the one saved
+        here (if any) is not. To change it, change {{ env_name }} and restart WebODM.
+        {% elif source == "saved" %}
+        <strong>A key is saved here</strong> and in use.
+        {% else %}
+        <strong>No key is set.</strong>
+        {% endif %}
+    </p>
+
+    <form method="post" autocomplete="off">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="mp-api-key">{% if source == "saved" %}Replace the saved key{% else %}Key{% endif %}</label>
+            <input type="password" class="form-control" id="mp-api-key" name="api_key" maxlength="256"
+                   autocomplete="new-password" spellcheck="false"{% if source == "environment" %} disabled{% endif %}>
+            <p class="help-block">Saving tries the key with one elevation request (a free key allows 50 a day).</p>
+        </div>
+        <button type="submit" class="btn btn-primary" name="action" value="save" id="mp-key-save"
+                {% if source == "environment" %} disabled{% endif %}>Save</button>
+        {% if source == "saved" %}
+        <button type="submit" class="btn btn-default" name="action" value="remove" id="mp-key-remove">Remove the saved key</button>
+        {% endif %}
+    </form>
+
+    <h4 id="mp-lidar-heading" style="margin-top: 30px">Lidar surface of the 3D view</h4>
+    <p>Where USGS lidar covers a route (most of the US), the editors' 3D view shows a 1 m surface with trees and
+        buildings, and the route is checked against it for collisions. It is built from the public lidar when a route
+        is opened and kept here for every route nearby (about 12 MB and 100 MB of download a km&sup2;). Clearing
+        removes it; it is built again when a route there is opened.</p>
+    {% if done == "lidar_cleared" %}
+    <div class="alert alert-success" id="mp-lidar-done">The lidar surface was cleared.</div>
+    {% endif %}
+    <p id="mp-lidar-usage">{{ lidar_units }} unit{{ lidar_units|pluralize }} of about 1 km&sup2; built, {{ lidar_size }} on disk, at most {{ lidar_cap }}: past it, the places opened longest ago are removed.</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-default" name="action" value="clear_lidar" id="mp-lidar-clear">Clear the lidar surface</button>
+    </form>
+
+    <h4 id="mp-import-heading" style="margin-top: 30px">Import routes from LuxODM</h4>
+    <p>Brings over the routes of LuxODM's mission planner, from the file LuxODM writes with
+        <code>python manage.py export_routes &lt;file&gt;</code>. Each route goes to the account with its LuxODM owner's
+        username and gets a new id (bookmarked LuxODM editor addresses do not carry over); a route whose owner has no
+        account here is skipped. Importing a file again imports its routes again, as copies.</p>
+
+    {% if done == "imported" %}
+    <div class="alert {% if imported == report|length %}alert-success{% else %}alert-warning{% endif %}" id="mp-import-done">
+        {{ imported }} of {{ report|length }} route{{ report|length|pluralize }} imported.
+    </div>
+    <table class="table table-condensed" id="mp-import-report">
+        <thead><tr><th>LuxODM route</th><th>Owner</th><th>Here</th></tr></thead>
+        <tbody>
+        {% for line in report %}
+        <tr>
+            <td>#{{ line.luxodm_id }} {{ line.name }}</td>
+            <td>{{ line.owner|default:"none" }}</td>
+            <td>{% if line.id %}<a href="{{ public }}route/{{ line.id }}">#{{ line.id }}, open</a>{% else %}Skipped: {{ line.skipped }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="mp-import-form">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="mp-import-routes-file">LuxODM routes export (JSON)</label>
+            <input type="file" id="mp-import-routes-file" name="routes_file" accept=".json,application/json">
+        </div>
+        <button type="submit" class="btn btn-default" name="action" value="import" id="mp-import-routes">Import</button>
+    </form>
+</div>
+{% endblock %}

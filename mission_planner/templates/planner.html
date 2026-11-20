@@ -1,0 +1,371 @@
+{% extends "app/plugins/templates/base.html" %}
+{% load settings %}
+{% block content %}
+<link rel="stylesheet" href="{{ public }}node_modules/maplibre-gl/dist/maplibre-gl.css">
+<link rel="stylesheet" href="{{ public }}planner.css">
+
+<div id="mission-planner" data-api="{{ api }}" data-route-id="{{ route_id }}" data-route-type="{{ route.route_type }}">
+    {% csrf_token %}
+    {{ basemaps|json_script:"mp-basemaps" }}
+    {{ route.name|default:""|json_script:"mp-route-name" }}
+    {{ route.settings|json_script:"mp-route-settings" }}
+    {{ route.model|json_script:"mp-route-model" }}
+    {{ drones|json_script:"mp-drones" }}
+    {{ route.terrain_info|json_script:"mp-route-terrain" }}
+    <aside class="mp-panel">
+        <div class="mp-top-bar" style="background-color: {% theme "secondary" %}; border-bottom: 1px solid {% theme "border" %};">
+            <a href="{{ public }}" class="mp-back" id="mp-back-link"><i class="fa fa-arrow-left"></i> Routes</a>
+            <div class="mp-save-group">
+                <span class="mp-save-status" id="mp-save-status"></span>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-save-button" disabled><i class="fa fa-save"></i> Save</button>
+            </div>
+        </div>
+        <h3>{% if route.route_type == "linear" %}Linear route{% elif route.route_type == "slope" %}Slope route{% elif route.route_type == "geometric" %}Geometric route{% else %}Area route{% endif %}</h3>
+
+        <form id="mp-form" autocomplete="off" onsubmit="return false;">
+            <div class="mp-section">
+                <div class="form-group">
+                    <label for="mp-name">Mission name</label>
+                    <input type="text" class="form-control input-sm" id="mp-name" name="name" value="luxodm-mission">
+                </div>
+            </div>
+
+            <div class="mp-model-badge" id="mp-model-badge">{{ route.get_model_display }}</div>
+            <p class="mp-note">{% if drone.app == "djifly" %}Experimental: use it at your own risk. Open every mission in DJI Fly and check it before flying: it is put on the controller by replacing a mission made there (see the README).{% else %}Experimental: use it at your own risk. Open every mission in DJI Pilot 2 or FlightHub 2 and check it before flying.{% endif %}</p>
+
+            {% if route.route_type == "linear" %}
+            <div class="mp-tools btn-group btn-group-sm">
+                <button type="button" class="btn btn-default" data-tool="pointer" title="Click the map for the height above sea level there; each next click also shows the difference from the one before. Click a dot to clear them"><i class="fa fa-mouse-pointer"></i> Pointer</button>
+                <button type="button" class="btn btn-default" data-tool="line" title="Click the points of the center line. Double-click to finish"><i class="fa fa-route"></i> Line</button>
+                <button type="button" class="btn btn-default" data-tool="select" title="Move the line or its points"><i class="fa fa-arrows-alt"></i> Edit</button>
+                <button type="button" class="btn btn-default" data-tool="clear" title="Remove the line"><i class="fa fa-trash"></i></button>
+            </div>
+            <div class="mp-message" id="mp-area-message">Draw the center line of the strip to survey on the map.</div>
+            {% else %}
+            <div class="mp-tools btn-group btn-group-sm">
+                <button type="button" class="btn btn-default" data-tool="pointer" title="Click the map for the height above sea level there; each next click also shows the difference from the one before. Click a dot to clear them"><i class="fa fa-mouse-pointer"></i> Pointer</button>
+                <button type="button" class="btn btn-default" data-tool="polygon" title="Click the corners of the {% if route.route_type == "slope" %}slope{% elif route.route_type == "geometric" %}block{% else %}area{% endif %}. Double-click to finish"><i class="fa fa-draw-polygon"></i> Polygon</button>
+                <button type="button" class="btn btn-default" data-tool="rectangle" title="Drag over the area"><i class="fa fa-vector-square"></i> Rectangle</button>
+                <button type="button" class="btn btn-default" data-tool="select" title="Move the area or its corners"><i class="fa fa-arrows-alt"></i> Edit</button>
+                <button type="button" class="btn btn-default" data-tool="clear" title="Remove the area"><i class="fa fa-trash"></i></button>
+            </div>
+            <div class="mp-message" id="mp-area-message">{% if route.route_type == "slope" %}Draw the slope on the map: its outline as seen from above.{% elif route.route_type == "geometric" %}Draw the block on the map: its outline as seen from above.{% else %}Draw the area to survey on the map.{% endif %}</div>
+            {% endif %}
+
+            <div class="mp-message mp-collisions" id="mp-collisions" hidden></div>
+
+            <div class="mp-summary">
+                <div><i class="fa {% if route.route_type == "linear" %}fa-ruler{% elif route.route_type == "slope" %}fa-mountain{% elif route.route_type == "geometric" %}fa-building{% else %}fa-vector-square{% endif %}" title="{% if route.route_type == "linear" %}Length of the center line{% elif route.route_type == "slope" %}Slope{% elif route.route_type == "geometric" %}Height of the block{% else %}Area{% endif %}"></i><span id="mp-sum-area">&ndash;</span></div>
+                <div><i class="fa fa-route"></i><span id="mp-sum-length">&ndash;</span></div>
+                <div><i class="fa fa-clock"></i><span id="mp-sum-time">&ndash;</span></div>
+                <div><i class="fa fa-images"></i><span id="mp-sum-photos">&ndash;</span></div>
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-title">Units</div>
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default active" data-units="metric">Metric (m, m/s)</button>
+                    <button type="button" class="btn btn-default" data-units="imperial">Imperial (ft, mph)</button>
+                </div>
+                <p class="help-block">The route is always planned and saved in metric; this only changes what is shown here.</p>
+            </div>
+
+            <div class="mp-section">
+                <button type="button" class="btn btn-primary btn-block" id="mp-takeoff-button"><i class="fa fa-home"></i> <span id="mp-takeoff-text">Reference takeoff point not set</span></button>
+                <div class="form-group mp-takeoff-altitude" id="mp-takeoff-altitude-row" hidden>
+                    {% if route.route_type == "slope" %}
+                    <label for="mp-takeoff-altitude" id="mp-takeoff-altitude-label" data-unit-text="Ground height at the takeoff point (%s, WGS84 ellipsoidal, as the corners)">Ground height at the takeoff point (m, WGS84 ellipsoidal, as the corners)</label>
+                    {% elif route.route_type == "geometric" %}
+                    <label for="mp-takeoff-altitude" id="mp-takeoff-altitude-label" data-unit-text="Ground height at the takeoff point (%s, WGS84 ellipsoidal, as the base and top)">Ground height at the takeoff point (m, WGS84 ellipsoidal, as the base and top)</label>
+                    {% else %}
+                    <label for="mp-takeoff-altitude" id="mp-takeoff-altitude-label">Ground height at the takeoff point (m above sea level)</label>
+                    {% endif %}
+                    <input type="number" step="any" class="form-control input-sm" id="mp-takeoff-altitude" name="takeoff_altitude" placeholder="needed to write the point into the mission">
+                    <input type="hidden" id="mp-takeoff-ellipsoidal-height" name="takeoff_ellipsoidal_height">
+                    <button type="button" class="btn btn-default btn-sm" id="mp-fetch-elevation">Fetch from elevation data</button>
+                    <span class="mp-note" id="mp-elevation-status"></span>
+                    {% if route.route_type == "slope" %}
+                    <p class="help-block">Written into the mission with the takeoff point, as Pilot 2 does. The route itself flies the corners' heights.</p>
+                    {% elif route.route_type == "geometric" %}
+                    <p class="help-block">Written into the mission with the takeoff point, as Pilot 2 does. The route itself flies the heights of the block.</p>
+                    {% else %}
+                    <p class="help-block">Only needed for the ASL waypoint altitude mode, below - ALT and AGL do not use it.</p>
+                    {% endif %}
+                </div>
+                {% if route.route_type != "slope" and route.route_type != "geometric" %}
+                <div class="mp-errors mp-asl-hint" id="mp-asl-hint-takeoff" hidden></div>
+                {% endif %}
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-title">Select lens</div>
+                <div class="mp-chips">
+                    <label class="mp-chip"><input type="checkbox" id="mp-lens-visible" name="lens_visible" checked> Visible</label>
+                    <label class="mp-chip"{% if "ir" not in drone.cameras %} hidden{% endif %}><input type="checkbox" id="mp-lens-ir" name="lens_ir" checked> IR</label>
+                </div>
+                {% if "ir" in drone.cameras %}
+                <p class="help-block">{{ drone.name|default:route.model }}. With both, the thermal camera's smaller view sets the spacing. Thermal alone cannot be exported yet.</p>
+                {% else %}
+                <p class="help-block">{{ drone.name|default:route.model }}: the wide camera only.</p>
+                {% endif %}
+            </div>
+
+            {% if route.route_type == "linear" %}
+            <div class="mp-section">
+                <div class="mp-title">Strip</div>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-left-extend" id="mp-left-extend-label">Width to the left (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-left-extend" name="left_extend"></div>
+                    <div class="form-group"><label for="mp-right-extend" id="mp-right-extend-label">Width to the right (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-right-extend" name="right_extend"></div>
+                </div>
+                <div class="checkbox">
+                    <label title="Fly one line along the center line, as high as the photos need to cover the strip"><input type="checkbox" id="mp-single-line" name="single_line"> Single line</label>
+                </div>
+                <p class="help-block">Left and right as seen walking from the line's first point. With a single line, the height follows the strip's width.</p>
+            </div>
+            {% elif route.route_type == "slope" %}
+            <div class="mp-section">
+                <div class="mp-title">Corner heights</div>
+                <p class="help-block">WGS84-ellipsoidal heights in meters, as Pilot 2 writes them and a processed task's DSM gives them<span id="mp-undulation-note"></span>. The numbers are those on the map.</p>
+                <div class="mp-corners" id="mp-corners"></div>
+                <button type="button" class="btn btn-default btn-sm" id="mp-face-heights" disabled>Heights from a task's DSM</button>
+                <div class="mp-note" id="mp-face-status"></div>
+                <div class="mp-face-tasks" id="mp-face-tasks"></div>
+            </div>
+            {% elif route.route_type == "geometric" %}
+            <div class="mp-section">
+                <div class="mp-title">Block</div>
+                <p class="help-block">WGS84-ellipsoidal heights in meters, as Pilot 2 writes them and a processed task's DSM gives them<span id="mp-undulation-note"></span>.</p>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-base">Base (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-base" name="base"></div>
+                    <div class="form-group"><label for="mp-top">Top (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-top" name="top"></div>
+                </div>
+                <button type="button" class="btn btn-default btn-sm" id="mp-block-heights" disabled>Heights from a task's DSM</button>
+                <div class="mp-note" id="mp-block-status"></div>
+                <div class="mp-face-tasks" id="mp-block-tasks"></div>
+                <div class="checkbox">
+                    <label title="Map the roof (Pilot 2's top face) before the walls: lines over it, the camera tilted round with Smart Oblique"><input type="checkbox" id="mp-roof" name="roof"> Map the roof too</label>
+                </div>
+                <p class="help-block">The roof is flown first, in lines at the distance above the top that run on 30 m past it each way (as Pilot 2 flies them), the camera cycling straight down and 30&deg; off it to the four corners; then the walls in level loops.</p>
+            </div>
+            {% else %}
+            <div class="mp-section">
+                <div class="mp-title">Photo collection</div>
+                <input type="hidden" id="mp-collection-mode" name="collection_mode" value="ortho">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default active" data-seg="collection_mode" data-value="ortho">Ortho collection</button>
+                    <button type="button" class="btn btn-default" data-seg="collection_mode" data-value="oblique" title="Also flies 4 tilted passes, 90&deg; apart"{% if drone.app == "djifly" %} hidden{% endif %}>Oblique collection</button>
+                </div>
+                <div id="mp-oblique-fields" hidden>
+                    <p class="help-block">Oblique supports the ALT and ASL waypoint altitude modes, not AGL: choosing it turns AGL off, below.</p>
+                    <div class="form-group">
+                        <label for="mp-gimbal-pitch">Gimbal tilt angle (&deg; from straight down)</label>
+                        <input type="number" step="any" class="form-control input-sm" id="mp-gimbal-pitch" name="gimbal_pitch" placeholder="-85 to -40">
+                    </div>
+                    <div class="mp-row">
+                        <div class="form-group"><label for="mp-inclined-overlap-h">Oblique overlap along lines (%)</label><input type="number" step="any" class="form-control input-sm" id="mp-inclined-overlap-h" name="inclined_overlap_h" placeholder="same as ortho"></div>
+                        <div class="form-group"><label for="mp-inclined-overlap-w">Oblique overlap between lines (%)</label><input type="number" step="any" class="form-control input-sm" id="mp-inclined-overlap-w" name="inclined_overlap_w" placeholder="same as ortho"></div>
+                    </div>
+                    <div class="form-group">
+                        <div class="checkbox">
+                            <label for="mp-inclined-speed-toggle"><input type="checkbox" id="mp-inclined-speed-toggle"> Set oblique speed separately</label>
+                        </div>
+                        <label for="mp-inclined-speed" id="mp-inclined-speed-label">Oblique speed (m/s)</label>
+                        <input type="number" step="any" class="form-control input-sm" id="mp-inclined-speed" name="inclined_speed" placeholder="as fast as the oblique photos allow" disabled>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="mp-section">
+                <div class="mp-title">Ground sample distance <span class="mp-note">(linked to the height)</span></div>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-gsd-visible">Visible (cm/pixel)</label><input type="number" step="any" class="form-control input-sm" id="mp-gsd-visible"></div>
+                    <div class="form-group"{% if "ir" not in drone.cameras %} hidden{% endif %}><label for="mp-gsd-ir">IR (cm/pixel)</label><input type="number" step="any" class="form-control input-sm" id="mp-gsd-ir"></div>
+                </div>
+            </div>
+
+            {% if route.route_type == "slope" %}
+            <div class="mp-section">
+                <input type="hidden" id="mp-altitude-mode" name="altitude_mode" value="face">
+                <div class="form-group">
+                    <label for="mp-height" id="mp-height-label">Distance from the face (m)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-height" name="height">
+                </div>
+                <p class="help-block">Flown square-on to the face, the camera tilted to look straight at it.</p>
+            </div>
+            {% elif route.route_type == "geometric" %}
+            <div class="mp-section">
+                <input type="hidden" id="mp-altitude-mode" name="altitude_mode" value="walls">
+                <div class="form-group">
+                    <label for="mp-height" id="mp-height-label">Distance from the walls (m)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-height" name="height">
+                </div>
+                <p class="help-block">Flown level round the block, back and forth from just under the top down, the camera level and facing the walls.</p>
+            </div>
+            {% else %}
+            <div class="mp-section">
+                <div class="mp-title">Waypoint altitude mode</div>
+                <input type="hidden" id="mp-altitude-mode" name="altitude_mode" value="agl">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default" id="b-asl" data-seg="altitude_mode" data-value="asl" title="Above sea level (needs the takeoff point's elevation data fetched first, above)">ASL</button>
+                    <button type="button" class="btn btn-default" data-seg="altitude_mode" data-value="alt" title="Above the takeoff point (level ground only)">ALT</button>
+                    <button type="button" class="btn btn-default active" data-seg="altitude_mode" data-value="agl" title="Above the ground the aircraft sees">AGL</button>
+                </div>
+                <div class="mp-errors mp-asl-hint" id="mp-asl-hint-mode" hidden></div>
+                <div class="form-group">
+                    <label for="mp-height" id="mp-height-label">Height above the ground (m)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-height" name="height">
+                </div>
+                <div id="mp-terrain-row">
+                    <input type="hidden" id="mp-surface-follow" name="surface_follow" value="realtime">
+                    <div class="mp-segmented" id="mp-surface-follow-row">
+                        <button type="button" class="btn btn-default active" id="b-realtime" data-seg="surface_follow" data-value="realtime" title="The aircraft follows the ground it sees">Real-time follow</button>
+                        <button type="button" class="btn btn-default" id="b-dsm" data-seg="surface_follow" data-value="dsm" title="Heights planned over a terrain model of the route, embedded in the mission">Terrain model</button>
+                    </div>
+                    <div id="mp-dsm-row" hidden>
+                        <input type="hidden" id="mp-terrain-source" name="terrain_source" value="lidar">
+                        <div class="mp-segmented mp-terrain-source" id="mp-terrain-source-row">
+                            <button type="button" class="btn btn-default active" data-seg="terrain_source" data-value="lidar" title="The lidar surface: trees and roofs, 10 m cells, where USGS lidar covers the route (else COP30)">Lidar surface (trees, roofs)</button>
+                            <button type="button" class="btn btn-default" data-seg="terrain_source" data-value="cop30" title="Copernicus 30 m: a surface model of the whole world, coarser">COP30</button>
+                        </div>
+                        <button type="button" class="btn btn-default btn-sm" id="mp-fetch-terrain">Fetch terrain</button>
+                        <span class="mp-note" id="mp-terrain-status"></span>
+                        <p class="help-block">Heights are planned over a terrain model of the route, embedded in the mission: the lidar surface (the highest point of every 10 m, trees and roofs, where USGS lidar covers the conterminous US, routes up to 4 km² with their margin; built first if needed, about 15 s a km²), or Copernicus 30 m elsewhere, or the imported file's. It is fetched on export if the route has none. Oblique AGL always uses it.</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="mp-section">
+                <div class="mp-title">Takeoff</div>
+                <input type="hidden" id="mp-takeoff-mode" name="takeoff_mode" value="safe">
+                <div class="mp-segmented">
+                    <button type="button" class="btn btn-default" data-seg="takeoff_mode" data-value="direct" title="Fly straight to the first waypoint">Direct ascent</button>
+                    <button type="button" class="btn btn-default active" data-seg="takeoff_mode" data-value="safe" title="Climb to the safe takeoff altitude first">Safe takeoff</button>
+                </div>
+                <div class="form-group" id="mp-safe-row">
+                    <label for="mp-tsh" id="mp-tsh-label">Safe takeoff altitude (m)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-tsh" name="takeoff_security_height">
+                </div>
+            </div>
+
+            <div class="mp-section">
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-speed" id="mp-speed-label">Global flight speed (m/s)</label><input type="number" step="any" class="form-control input-sm" id="mp-speed" name="speed" placeholder="as fast as allowed"></div>
+                    {% if route.route_type == "area" %}
+                    <div class="form-group"><label for="mp-direction">Course angle (&deg;)</label><input type="number" step="any" class="form-control input-sm" id="mp-direction" name="direction"></div>
+                    {% endif %}
+                </div>
+                {% if route.route_type == "area" %}
+                <input type="range" min="0" max="360" step="1" class="mp-slider" id="mp-direction-slider" title="Course angle">
+                <a href="javascript:void(0);" id="mp-longest" class="mp-link">course along the longest side</a>
+                {% endif %}
+                {% if route.route_type != "slope" and route.route_type != "geometric" %}
+                <div class="mp-chips">
+                    <label class="mp-chip"><input type="checkbox" id="mp-elevation" name="elevation_optimize" checked> Elevation optimization</label>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="mp-section">
+                <div class="form-group">
+                    <label for="mp-finish">Upon completion</label>
+                    <select class="form-control input-sm" id="mp-finish" name="finish_action">
+                        <option value="goHome">Return to home</option><option value="autoLand">Land</option>
+                        <option value="gotoFirstWaypoint">Go to the first waypoint</option><option value="noAction">Hover</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="mp-rclost">If remote signal is lost</label>
+                    <select class="form-control input-sm" id="mp-rclost" name="exit_on_rc_lost">
+                        <option value="goContinue">Continue the mission</option><option value="executeLostAction">Return to home</option>
+                    </select>
+                </div>
+            </div>
+
+            <details class="mp-more mp-section">
+                <summary>Advanced settings</summary>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-transitional" id="mp-transitional-label">Takeoff speed (m/s)</label><input type="number" step="any" class="form-control input-sm" id="mp-transitional" name="transitional_speed"></div>
+                    <div class="form-group"><label for="mp-rth" id="mp-rth-label">Return height (m)</label><input type="number" step="any" class="form-control input-sm" id="mp-rth" name="rth_height"></div>
+                </div>
+                <div class="mp-row">
+                    <div class="form-group"><label for="mp-overlap-w">Side overlap (%)</label><input type="number" step="any" class="form-control input-sm" id="mp-overlap-w" name="overlap_w"></div>
+                    <div class="form-group"><label for="mp-overlap-h">Forward overlap (%)</label><input type="number" step="any" class="form-control input-sm" id="mp-overlap-h" name="overlap_h"></div>
+                </div>
+                {% if route.route_type == "area" %}
+                <div class="form-group">
+                    <label for="mp-margin" id="mp-margin-label">Margin (m)</label>
+                    <input type="number" step="any" class="form-control input-sm" id="mp-margin" name="margin">
+                </div>
+                <div class="form-group">
+                    <label for="mp-photo-mode">Photo mode</label>
+                    <select class="form-control input-sm" id="mp-photo-mode" name="photo_mode">
+                        <option value="distance">Distance interval shot</option>
+                        <option value="time" disabled>Time interval shot (needs a Pilot 2 or FlightHub file to copy)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-default btn-sm" id="mp-start-button"><i class="fa fa-play"></i> <span id="mp-start-text">Set route start point</span></button>
+                </div>
+                {% endif %}
+                <div class="checkbox">
+                    <label title="Avoid the custom geo zones"><input type="checkbox" id="mp-geozone" name="avoid_limit_area"> Custom GEO zone obstacle bypassing</label>
+                </div>
+                <div class="checkbox">
+                    <label title="Turning it off needs a Pilot 2 or FlightHub file to copy"><input type="checkbox" checked disabled> Bypass obstacle</label>
+                </div>
+            </details>
+        </form>
+
+        <div class="mp-errors" id="mp-errors"></div>
+        <div class="mp-results" id="mp-results"></div>
+        {% if route.route_type == "slope" %}
+        <div class="mp-profile" id="mp-profile" hidden><div class="mp-title">Side view</div><div id="mp-profile-svg"></div><p class="help-block">Across the face, to scale: the face, each flight line, and the camera's view from it.</p></div>
+        {% elif route.route_type == "geometric" %}
+        <div class="mp-profile" id="mp-profile" hidden><div class="mp-title">Side view</div><div id="mp-profile-svg"></div><p class="help-block">Across a wall, to scale: the wall, each loop, and the camera's view from it.</p></div>
+        {% endif %}
+        <div class="mp-warnings" id="mp-warnings"></div>
+        <button type="button" class="btn btn-primary" id="mp-download" disabled><i class="fa fa-download"></i> Download mission (.kmz)</button>
+        <button type="button" class="btn btn-default" id="mp-download-kml" disabled title="The route's shape and flight path, for Google Earth and other apps (not a mission file)"><i class="fa fa-globe"></i> Download KML</button>
+    </aside>
+    <div id="mp-map"></div>
+
+    <div class="mp-leave-dialog" id="mp-leave-dialog" hidden>
+        <div class="mp-leave-dialog-inner">
+            <h4>Unsaved changes</h4>
+            <p>This route has changes that have not been saved yet.</p>
+            <div class="mp-leave-actions">
+                <button type="button" class="btn btn-default btn-sm" id="mp-leave-discard">Discard</button>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-leave-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="mp-leave-dialog" id="mp-elevation-dialog" hidden>
+        <div class="mp-leave-dialog-inner">
+            <h4 id="mp-elevation-title">Could not fetch the elevation</h4>
+            <p id="mp-elevation-error"></p>
+            <div class="mp-leave-actions">
+                <button type="button" class="btn btn-default btn-sm" id="mp-elevation-cancel">Cancel</button>
+                <button type="button" class="btn btn-default btn-sm" id="mp-elevation-use-cached">Use cached values</button>
+                <button type="button" class="btn btn-primary btn-sm" id="mp-elevation-retry">Retry</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# maplibre.mjs is a module, so it runs after parsing: the scripts after it are deferred to keep the order #}
+<script type="module" src="{{ public }}maplibre.mjs"></script>
+<script defer src="{{ public }}node_modules/terra-draw/dist/terra-draw.umd.js"></script>
+<script defer src="{{ public }}node_modules/terra-draw-maplibre-gl-adapter/dist/terra-draw-maplibre-gl-adapter.umd.js"></script>
+<script defer src="{{ public }}planner_core.js"></script>
+<script defer src="{{ public }}layers_panel.js"></script>
+<script defer src="{{ public }}lidar_surface.js"></script>
+<script defer src="{{ public }}pointer_height.js"></script>
+<script defer src="{{ public }}measure.js"></script>
+<script defer src="{{ public }}route_3d.js"></script>
+<script defer src="{{ public }}search_panel.js"></script>
+<script defer src="{{ public }}route_form.js"></script>
+<script defer src="{{ public }}planner.js"></script>
+{% endblock %}
