@@ -30,14 +30,21 @@ committed: nothing true only on one machine. Keep it short; edit in place.
 - **The repo is public** (from 2026-11-19, Phase 18): the KMZ test fixtures were moved off the places they were
   flown, each place due east by its own fixed offset (where EGM96 matches, so Pilot 2's heights still agree), and
   their author emails replaced. A new fixture gets the same treatment before it is committed: no real place, email,
-  name or serial number in it, and the offsets are never written down. The plugin is installed from the release zip (Administration > Plugins), not listed in WebODM-Plugins.
+  name or serial number in it, and the offsets are never written down. The plugin is installed from the release zip (Administration > Plugins), and listed in
+  WebODM-Plugins (decided 2026-11-20, at the WebODM maintainer's suggestion) from the first release after the repo is public.
 - **Never push and never tag.** Nothing is published by a push (no CI). A release: Claude first reviews the code
   changed since the last release for bugs and UI breakdowns that would hurt the user's experience (every page,
   panel and dialog a change touches, on both stacks), fixes what it finds on its own branches and merges them;
   then prepares a `release/X.Y.Z` branch (manifest version, `CHANGELOG.md`, `README.md`), builds the zip with `dev/package.sh`
   (`dist/mission_planner-X.Y.Z.zip` and its sha256; reproducible: a commit outside `mission_planner/` and `LICENSE`
   builds the same zip), runs the `release-check` skill and merges; the user tags
-  `vX.Y.Z` and attaches the zip to the GitHub release.
+  `vX.Y.Z` and attaches the zip to the GitHub release. Last step: the WebODM-Plugins listing. Claude makes a branch in
+  the user's fork (`WinuxNomacs/WebODM-Plugins`) from upstream's current `main` whose `directory.json` points at the
+  release's zip (`https://github.com/WinuxNomacs/webodm-dji-mission-planner/releases/download/vX.Y.Z/mission_planner-X.Y.Z.zip`)
+  and its sha256 (the entry added the first time, replaced after), checks the attached zip's sha256 against
+  `dist/`, pushes the branch with the user's approval, and the user opens the pull request. The directory takes the
+  zip's root folder (`mission_planner`) as the plugin's id; WebODM's maintainer lists his own Mission Planner as
+  `mission-planner`, a different id.
 - **Copies shared with other repos**: `layers_panel.js` and `search_panel.js` (Photon suggestions as one types,
   Nominatim on Enter) have adapted copies in webodm-geojson (their own class prefixes and features): a fix to one
   is made in the other too, with its tests. The code came from

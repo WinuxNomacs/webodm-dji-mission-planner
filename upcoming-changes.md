@@ -8,14 +8,17 @@ to its title.
 
 **Up next**
 
-1. **Phase 20: lidar regions** (planned 2026-11-20): the lidar code made pluggable by region, the US its first
-   region, with no change in what it builds. Details in the "Lidar regions" section.
-2. **Phase 21: England** (planned 2026-11-20): the Environment Agency's 1 m surface as a region (Tower Bridge).
-3. **Phase 22: Canada** (planned 2026-11-20): Natural Resources Canada's 1 m surface as a region (Canmore; Lake
-   Louise, which it does not cover, for the fallback).
+Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views
+of the replaced commits, then make it public.
 
-Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
-commits, then make it public.
+Listing in WebODM-Plugins (the user, 2026-11-20, after talking with WebODM's maintainer, who suggested it): from now
+on the last step of every release (CLAUDE.md, "Never push and never tag"): a branch in the user's fork of
+WebODM-Plugins pointing `directory.json` at the release's zip and sha256, pushed with the user's approval; the user
+opens the pull request. It needs the repo public (the directory downloads the zip anonymously). The directory's rules
+(its README and `fetch_directory.py`, read 2026-11-20): an OSI licence (AGPL-3.0 here), a `.zip` URL with its sha256,
+one root folder with `manifest.json`, the root folder's name as the plugin's id, refused if another plugin has it
+(ours `mission_planner`, the maintainer's own Mission Planner `mission-planner`). The README's install section names
+the directory in the release that lists it. 2.0.0 can be listed as soon as the repo is public, without a new release.
 
 Releases: 1.0.0 was merged on 2026-11-17 but never published (the plugin was for development only then). 2.0.0, the
 first published release, was prepared on 2026-11-20 at the user's request (2.0.0 because 1.0.0 was kept and WebODM 3.3.2
@@ -31,7 +34,11 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    is in the Phase 5 section.
 2. **Mavic 3M multispectral** (the user, 2026-11-19: after 15b): the `narrow_band` lens as a third camera choice,
    once a real M3M file or a DJI source confirms its name and payload sub value.
-3. **Scotland, Wales and Northern Ireland** (the user, 2026-11-20: England first): each nation's lidar as a region,
+3. **Lidar regions, England and Canada** (planned 2026-11-20, kept for later by the user the same day): Phase 20
+   (the lidar made pluggable by region, the US its first), Phase 21 (the Environment Agency's 1 m surface, Tower
+   Bridge), Phase 22 (Natural Resources Canada's 1 m surface, Canmore; Lake Louise for the fallback). The design and
+   the vetting are in the "Lidar regions" section; vet the sources again before building.
+4. **Scotland, Wales and Northern Ireland** (the user, 2026-11-20: after England): each nation's lidar as a region,
    once its service is vetted (the Scottish Remote Sensing Portal, Natural Resources Wales through DataMapWales,
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
@@ -854,7 +861,7 @@ fetch keeps the new point's height, no fetch on opening a waypoint route in ASL,
 the hint with no dialog, Fetch from elevation data clearing the hints; routes deleted.
 
 
-## Lidar regions: Phases 20-22 (planned 2026-11-20)
+## Lidar regions: Phases 20-22 (planned 2026-11-20, kept for later)
 
 The request (the user, 2026-11-20): USGS lidar covers only the US; add Canada and the UK, as pluggable regions so
 that more can be added. Samples: Tower Bridge (London) for the UK, the Lake Louise area for Canada.
