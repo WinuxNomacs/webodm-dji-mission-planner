@@ -157,6 +157,16 @@ class TestLinearPlan(SimpleTestCase):
         self.assertAlmostEqual(p.spacing, ZIGZAG_HEIGHT * 7.68 / 12 * 0.2)
         self.assertGreaterEqual((len(p.lines) - 1) * p.spacing, 100)
 
+    def test_the_lines_are_spaced_as_asked_on_the_ground_anywhere_in_a_utm_zone(self):
+        # UTM metres are 0.9996 ground metres on a zone's central meridian and 1.001 at its edge on the equator;
+        # a line starting at a zone's edge was laid out in that zone
+        for line in ([(-81.0, 41.0), (-81.0, 41.01)], [(-84.0001, 0.5), (-83.99, 0.51)], [(-84.0001, 0.5), (-84.01, 0.51)]):
+            p = linear.plan(route(line=line, left_extend=500, right_extend=500))
+            for a, b in zip(p.lines, p.lines[1:3]):
+                azimuth = GEOD.inv(*a[0], *a[1])[0]
+                to_point, _, d = GEOD.inv(*a[0], *b[-1])
+                self.assertAlmostEqual(abs(d * np.sin(np.radians(to_point - azimuth))), p.spacing, delta=0.001, msg=line)
+
     def test_a_straight_center_line_has_no_bend_pass(self):
         p = linear.plan(route(line=LINE[:2]))
         groups = [g for w in waypoints(linear.waylines_wpml(p, route(line=LINE[:2]))) for g in w["groups"]]

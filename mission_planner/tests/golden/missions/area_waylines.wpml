@@ -28,8 +28,8 @@
       <wpml:templateId>0</wpml:templateId>
       <wpml:executeHeightMode>realTimeFollowSurface</wpml:executeHeightMode>
       <wpml:waylineId>0</wpml:waylineId>
-      <wpml:distance>304.3440462901251</wpml:distance>
-      <wpml:duration>29.83765159707109</wpml:duration>
+      <wpml:distance>304.38147423984844</wpml:distance>
+      <wpml:duration>29.841321003906714</wpml:duration>
       <wpml:autoFlightSpeed>10.2</wpml:autoFlightSpeed>
       <wpml:startActionGroup>
         <wpml:action>
@@ -90,7 +90,7 @@
       <Placemark>
         <Point>
           <coordinates>
-            -85.0208666616662,42.1037492878235
+            -85.0208666863796,42.1037492880248
           </coordinates>
         </Point>
         <wpml:index>0</wpml:index>
@@ -98,7 +98,7 @@
         <wpml:waypointSpeed>10.2</wpml:waypointSpeed>
         <wpml:waypointHeadingParam>
           <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
-          <wpml:waypointHeadingAngle>-178.999750518</wpml:waypointHeadingAngle>
+          <wpml:waypointHeadingAngle>-178.999754519</wpml:waypointHeadingAngle>
           <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>
           <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>
           <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>
@@ -171,7 +171,7 @@
       <Placemark>
         <Point>
           <coordinates>
-            -85.0208743636136,42.1034207803559
+            -85.0208743910276,42.1034206640531
           </coordinates>
         </Point>
         <wpml:index>1</wpml:index>
@@ -179,7 +179,7 @@
         <wpml:waypointSpeed>10.2</wpml:waypointSpeed>
         <wpml:waypointHeadingParam>
           <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
-          <wpml:waypointHeadingAngle>-149.301277554</wpml:waypointHeadingAngle>
+          <wpml:waypointHeadingAngle>-149.293575655</wpml:waypointHeadingAngle>
           <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>
           <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>
           <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>
@@ -200,7 +200,7 @@
       <Placemark>
         <Point>
           <coordinates>
-            -85.0211147625232,42.1031192555087
+            -85.0211147707848,42.103119255532
           </coordinates>
         </Point>
         <wpml:index>2</wpml:index>
@@ -208,7 +208,7 @@
         <wpml:waypointSpeed>10.2</wpml:waypointSpeed>
         <wpml:waypointHeadingParam>
           <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
-          <wpml:waypointHeadingAngle>1.000079194</wpml:waypointHeadingAngle>
+          <wpml:waypointHeadingAngle>1.000079146</wpml:waypointHeadingAngle>
           <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>
           <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>
           <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>
@@ -229,7 +229,7 @@
       <Placemark>
         <Point>
           <coordinates>
-            -85.0210999491363,42.1037511881317
+            -85.0210999573976,42.1037511881988
           </coordinates>
         </Point>
         <wpml:index>3</wpml:index>
@@ -237,7 +237,7 @@
         <wpml:waypointSpeed>10.2</wpml:waypointSpeed>
         <wpml:waypointHeadingParam>
           <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
-          <wpml:waypointHeadingAngle>-89.373369628</wpml:waypointHeadingAngle>
+          <wpml:waypointHeadingAngle>-89.373369623</wpml:waypointHeadingAngle>
           <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>
           <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>
           <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>
@@ -258,7 +258,7 @@
       <Placemark>
         <Point>
           <coordinates>
-            -85.0213332366385,42.1037530879656
+            -85.0213332284295,42.1037530878986
           </coordinates>
         </Point>
         <wpml:index>4</wpml:index>
@@ -266,7 +266,7 @@
         <wpml:waypointSpeed>10.2</wpml:waypointSpeed>
         <wpml:waypointHeadingParam>
           <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
-          <wpml:waypointHeadingAngle>-179.000067359</wpml:waypointHeadingAngle>
+          <wpml:waypointHeadingAngle>-179.000067323</wpml:waypointHeadingAngle>
           <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>
           <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>
           <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>
@@ -287,7 +287,7 @@
       <Placemark>
         <Point>
           <coordinates>
-            -85.0213480766831,42.10311991905
+            -85.0213480684736,42.1031199190263
           </coordinates>
         </Point>
         <wpml:index>5</wpml:index>
@@ -295,7 +295,7 @@
         <wpml:waypointSpeed>10.2</wpml:waypointSpeed>
         <wpml:waypointHeadingParam>
           <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
-          <wpml:waypointHeadingAngle>-89.7812665</wpml:waypointHeadingAngle>
+          <wpml:waypointHeadingAngle>-89.781266437</wpml:waypointHeadingAngle>
           <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>
           <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>
           <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>
@@ -316,7 +316,7 @@
       <Placemark>
         <Point>
           <coordinates>
-            -85.021581390866,42.1031205821166
+            -85.0215813661673,42.1031205820463
           </coordinates>
         </Point>
         <wpml:index>6</wpml:index>
@@ -324,7 +324,7 @@
         <wpml:waypointSpeed>10.2</wpml:waypointSpeed>
         <wpml:waypointHeadingParam>
           <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
-          <wpml:waypointHeadingAngle>0.999763803</wpml:waypointHeadingAngle>
+          <wpml:waypointHeadingAngle>0.999766307</wpml:waypointHeadingAngle>
           <wpml:waypointPoiPoint>0.000000,0.000000,0.000000</wpml:waypointPoiPoint>
           <wpml:waypointHeadingAngleEnable>1</wpml:waypointHeadingAngleEnable>
           <wpml:waypointHeadingPathMode>followBadArc</wpml:waypointHeadingPathMode>
@@ -345,7 +345,7 @@
       <Placemark>
         <Point>
           <coordinates>
-            -85.0215708900429,42.103568685287
+            -85.0215708615964,42.1035688440256
           </coordinates>
         </Point>
         <wpml:index>7</wpml:index>

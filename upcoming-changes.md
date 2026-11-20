@@ -7,11 +7,8 @@ sections below. New requests arrive in `new.md`: they are turned into phases her
 to its title.
 
 **Up next**
-1. **Phase 19: true distances in area and linear routes** (planned 2026-11-19): lay the lines out in a frame centred
-   on the route instead of its UTM zone, so the spacing between lines is the one asked for on the ground. Details in
-   the Phase 19 section.
 
-Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
+Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
 commits, then make it public.
 
 The plugin is for development only (the user, 2026-11-17): version 1.0.0 is merged but not released, and no release
@@ -26,12 +23,18 @@ is planned: no tag, no GitHub release, no zip handed out.
    once a real M3M file or a DJI source confirms its name and payload sub value.
 
 **Done**
+- **Phase 19: true distances in area and linear routes** (2026-11-20, `phase-19-local-frame`): `planning.local_transformers`
+  (an azimuthal equidistant frame on the route's middle) replaces the UTM zone in `planning._survey_plan` and
+  `linear.plan`; `grid_convergence` and `utm_epsg` removed. Tests: the spacing on the ellipsoid within 1 mm on a zone's
+  central meridian, at its edge on the equator and at the sample B place, area and linear (`test_mission_planning`,
+  `test_mission_linear`; 10 mm and 6 mm off before); the tests' metric helpers measure true distances; golden files
+  regenerated (coordinates up to 1.6e-7 degrees, distance 0.22 m, duration 0.28 s, headings 0.014 degrees).
 - **Phase 18: ready to publish** (2026-11-19, `phase-18-publish`): the 36 sample KMZs, the golden files, the tests'
   constants and the live-check scripts moved off the places the samples were flown, each place due east to where
   EGM96 matches at its takeoff point; the author email replaced (`pilot@example.com`); the Smart3D samples' 3D scans
   removed; the terrain rasters cut to about 1.7 km round each route; the place, county and lidar project names out of
   the code, docs and this file; CLAUDE.md says the repo is public. Tests: every module (the golden files regenerated:
-  the planner works in UTM metres, whose scale changes across a zone).
+  the planner then worked in UTM metres, whose scale changes across a zone; Phase 19 fixed it).
   The fresh public history: `main` force-pushed as one commit (2026-11-19), scanned first.
 - **Phase 17: the name DJI Mission Planner** (2026-11-19, `phase-17-dji-name`): the shown name in the manifest, menu,
   page titles and headings, messages, log prefixes, KML text, README, CHANGELOG, CLAUDE.md and skills; the repo name
@@ -838,7 +841,7 @@ fetch keeps the new point's height, no fetch on opening a waypoint route in ASL,
 the hint with no dialog, Fetch from elevation data clearing the hints; routes deleted.
 
 
-## Phase 19: true distances in area and linear routes (planned 2026-11-19)
+## Phase 19: true distances in area and linear routes (planned 2026-11-19, built 2026-11-20)
 
 The request: found in Phase 18 (the golden files changed when the samples moved east), the user asked for the
 correction to be planned (2026-11-19).

@@ -12,7 +12,7 @@ import math
 from collections import namedtuple
 
 from django.contrib.gis.geos import LineString, Polygon
-from pyproj import Proj, Transformer
+from pyproj import Transformer
 
 from .cameras import footprint, oblique_footprint
 
@@ -33,21 +33,12 @@ class PlanError(ValueError):
     pass
 
 
-def utm_epsg(lon, lat):
-    zone = int((lon + 180) // 6) + 1
-    return (32600 if lat >= 0 else 32700) + zone
-
-
-def utm_transformers(lon, lat):
-    """(to_metric, to_lonlat): transformers between WGS84 and the UTM zone of a location"""
-    epsg = utm_epsg(lon, lat)
-    return (Transformer.from_crs(4326, epsg, always_xy=True), Transformer.from_crs(epsg, 4326, always_xy=True))
-
-
-def grid_convergence(lon, lat):
-    """Angle in degrees between grid north (the y axis of UTM) and true north at a location, positive when true north
-    is to the east of grid north"""
-    return Proj(utm_epsg(lon, lat)).get_factors(lon, lat).meridian_convergence
+def local_transformers(lon, lat):
+    """(to_metric, to_lonlat): transformers between WGS84 and an azimuthal equidistant frame centered on a location,
+    the y axis true north there. Its metres are ground metres to under 1e-7 within a few km of the center (the
+    distortion grows with the square of the distance), where UTM's are off by up to 0.1% across a zone."""
+    proj = "+proj=aeqd +lat_0=%r +lon_0=%r +ellps=WGS84" % (lat, lon)
+    return Transformer.from_crs(4326, proj, always_xy=True), Transformer.from_crs(proj, 4326, always_xy=True)
 
 
 def check_inputs(polygon, direction, height, overlap_h, overlap_w, margin, cameras, route_start=None):
@@ -82,16 +73,15 @@ def _survey_plan(polygon, direction, across, along, overlap_h, overlap_w, margin
     spacing = (1 - overlap_w / 100.0) * across
     interval = (1 - overlap_h / 100.0) * along
 
-    # The zone, and the difference between true and grid north, are those of the middle of the area
+    # A frame centered on the middle of the area
     center = (sum(p[0] for p in polygon) / len(polygon), sum(p[1] for p in polygon) / len(polygon))
-    to_metric, to_lonlat = utm_transformers(*center)
+    to_metric, to_lonlat = local_transformers(*center)
     metric = [to_metric.transform(p[0], p[1]) for p in polygon]
 
     # Work in a frame where a is the distance along the flight lines and c the distance across them:
     # every flight line is then c = constant
-    # The direction is a true bearing, the frame is that of the map grid: they differ by the grid convergence
-    # (0.7 degrees here, which is a meter of drift over a 100 m line)
-    theta = math.radians(direction - grid_convergence(*center))
+    # The direction is a true bearing, and the frame's y axis is true north at its center
+    theta = math.radians(direction)
     u = (math.sin(theta), math.cos(theta))     # along
     v = (math.cos(theta), -math.sin(theta))    # across (to the right)
     frame = [(x * u[0] + y * u[1], x * v[0] + y * v[1]) for x, y in metric]
