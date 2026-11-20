@@ -7,8 +7,9 @@ sections below. New requests arrive in `new.md`: they are turned into phases her
 to its title.
 
 **Up next**
-1. **Phase 18, last step: the fresh public history** (the user, 2026-11-19): `main` as one new commit, force-pushed;
-   then the user asks GitHub Support to garbage-collect the repo and makes it public.
+
+Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views
+of the replaced commits, then make it public.
 
 The plugin is for development only (the user, 2026-11-17): version 1.0.0 is merged but not released, and no release
 is planned: no tag, no GitHub release, no zip handed out.
@@ -28,6 +29,7 @@ is planned: no tag, no GitHub release, no zip handed out.
   removed; the terrain rasters cut to about 1.7 km round each route; the place, county and lidar project names out of
   the code, docs and this file; CLAUDE.md says the repo is public. Tests: every module (the golden files regenerated:
   the planner works in UTM metres, whose scale changes across a zone).
+  The fresh public history: `main` force-pushed as one commit (2026-11-19), scanned first.
 - **Phase 17: the name DJI Mission Planner** (2026-11-19, `phase-17-dji-name`): the shown name in the manifest, menu,
   page titles and headings, messages, log prefixes, KML text, README, CHANGELOG, CLAUDE.md and skills; the repo name
   in the manifest's homepage and `package.json`; `mission_planner` kept internally; `dev/webodm.sh` keeps the project
