@@ -6,6 +6,11 @@
   turning the lidar surface on or off, panning or zooming).
 - With the lidar surface on, the 3D view no longer encodes a PNG in the browser for each close-up tile outside the
   lidar: the tile goes to the map as an image, and each AWS tile it is cut from is decoded once.
+- A collision margin for each route (Advanced settings, 2 m by default): the route is red where it passes closer than
+  that to the ground, a tree or a roof, above or beside it, along the whole route rather than at points 5 m apart.
+- The lidar surface is tighter: each lidar point now counts only in its own 1 m cell (it used to raise the cells round
+  it too, about 1.4 m beyond every wall and crown), and distant tiles average rather than widen tall things. Lidar
+  surfaces built by an earlier version are built again once, the first time they are needed.
 
 ## 2.0.0 (2026-11-20)
 

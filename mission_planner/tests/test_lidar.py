@@ -370,6 +370,31 @@ class TestBuild(LidarTestCase):
         self.assertEqual(lidar.read_state(self.unit)["state"], "failed")
         self.assertEqual(lidar.read_state(far)["state"], "none")
 
+    def test_the_dsm_counts_each_point_in_its_own_cell_only(self):
+        self.build()
+        writer = self.pipelines()[0][-1]
+        # PDAL's default radius (the cell times the square root of two) spreads a roof's height into the cells round it
+        self.assertAlmostEqual(writer["radius"], writer["resolution"] * 2 ** 0.5 / 2)
+
+    def test_a_unit_built_before_the_current_surface_is_built_again_once(self):
+        self.build()
+        st = lidar.read_state(self.unit)
+        self.assertEqual(st["version"], lidar.SURFACE_VERSION)
+        lidar._write_json(os.path.join(lidar.unit_folder(self.unit), "status.json"),
+                          {"state": "done", "time": st["time"], "message": st["message"]})     # as an older plugin wrote it
+        queued = []
+        self.assertEqual(lidar.request([self.unit], enqueue=queued.append)[0]["state"], "queued")
+        self.assertEqual(queued, [[self.unit]])
+        self.build()
+        lidar.request([self.unit], enqueue=queued.append)
+        self.assertEqual(len(queued), 1)                        # built again once, not on every request
+
+    def test_far_tiles_average_tall_things_rather_than_widen_them(self):
+        self.build()
+        row = tile_heights(15, *self.unit)[128]
+        blended = [h for h in row if GROUND + 1 < h < TREE - 1]
+        self.assertTrue(blended, "the tree block's edge pixels at zoom 15 are either ground or tree: widened")
+
     def test_a_done_unit_whose_dsm_is_gone_reads_as_never_built(self):
         self.build()
         os.remove(os.path.join(lidar.unit_folder(self.unit), "dsm.tif"))

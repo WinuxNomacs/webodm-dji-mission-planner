@@ -8,7 +8,7 @@
   public USGS lidar (most of the US), with each waypoint's height above what is under it.
 - **Accurate ground heights:** AGL routes follow a 10 m terrain from the lidar's highest points (COP30 elsewhere),
   converted to the heights DJI expects (WGS84, with GEOID18 and EGM96), and the route turns red wherever it would
-  touch the ground, a tree or a roof.
+  come within its collision margin (2 m unless changed) of the ground, a tree or a roof.
 - **Five kinds of route:** area surveys (ortho or oblique), linear corridors, waypoint and POI orbits, slopes and
   facades, and whole buildings, with the photo spacing worked out from your overlaps or ground sample distance.
 - **Many DJI drones:** Matrice 4T/4E, Mavic 3 Enterprise, Matrice 30, 3D and 4D, M300/M350 with Zenmuse payloads,
@@ -127,12 +127,15 @@ fork of WebODM where it was written, and runs on an unmodified WebODM 4.0.0 or l
   (the route's terrain, once fetched; until then above the 3D view's surface), slope and building routes at their
   ellipsoidal heights. The routes' heights above sea level are EGM96, the lidar's NAVD88: they can differ by a meter
   or so in the US.
-- **Collisions, in 2D and 3D:** where the route goes into the surface (the ground, trees or a roof), that part of its
-  line is red, with 10 m of yellow before and after it, so each collision's start and end stand out: on the 2D map
-  over the route's lines, in 3D drawn through the surface. The side panel says in how many places the route goes into
-  the surface, or that it stays above it. The route is checked every 5 m against the finest surface there is (the
-  lidar's 1 m surface where built, else the shape of the ground), the same in both views whatever the zoom; until the
-  lidar surface is built (it starts when the route is opened), trees and roofs are not counted.
+- **Collisions, in 2D and 3D:** where the route comes closer to the surface (the ground, trees or a roof) than its
+  collision margin, above or beside it, that part of its line is red, with 10 m of yellow before and after it, so each
+  collision's start and end stand out: on the 2D map over the route's lines, in 3D drawn through the surface. The side
+  panel says in how many places the route comes within the margin, or that it stays at least that far above. The
+  margin is a field of each route's Advanced settings, "Collision margin", 2 m unless changed (0 checks against the
+  surface itself); it changes the check only, not the mission. Each 5 m piece of the route is checked against the
+  highest point of the finest surface there is within the margin of it (the lidar's 1 m surface where built, else the
+  shape of the ground), the same in both views whatever the zoom; until the lidar surface is built (it starts when the
+  route is opened), trees and roofs are not counted.
 - **Waypoint height labels:** beside each numbered point of a waypoint route, in 2D and 3D, its height above the
   surface right under it (trees and roofs where the lidar surface is built), in the editor's units; red, with a
   negative height, when the point is below it.

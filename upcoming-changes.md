@@ -1090,6 +1090,15 @@ screenshots of the editor's basemap (the place georeferenced from the map's boun
   1.0 m lower on average; no cell is left empty. The building's outlined area drops 5% (about 1 m round its edge).
 - The Illinois sample's place is unbroken forest: no buildings to line up, and no ground between the crowns; not used.
 
+**Steps 2 and 3, built (2026-11-20):** `lidar.py` (`radius` half a cell's diagonal; zooms 15 and 16 cut with
+`average`, the others were already bilinear; `SURFACE_VERSION` 2 in each state, a unit built before is built again
+once, on its next request: until then it reads as queued, AWS's terrain shown there); `pointer_height.js`
+(`bandMaxes`); `route_3d.js` (`collide` with a band, `collisionText` with the margin and units); the "Collision margin"
+field in both editors' Advanced settings (`collision_margin`, 2 by default, `Core.collisionMargin`). AGL routes' lidar
+terrain (`lidar_terrain.py`) is made from the same DSMs at their highest point per 10 m cell, so it changes little: a
+cell beside a wall no longer takes the roof's height from up to 1.4 m away. Live: the user's place rebuilt in about
+25 s; the copy of TestAreaRoute "stays above the surface" at 0 m and "comes within 2 m of the surface in 2 places" at 2 m.
+
 **Decided with the user (2026-11-20):**
 - **A 2 m collision margin, up and sideways, in a field of each route's form** (both editors), saved with the route;
   routes saved without it get 2 m. Shown in feet in imperial. It changes the editors' check only, not the KMZ.

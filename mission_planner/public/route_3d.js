@@ -90,31 +90,46 @@
     // the surface and where the yellow before and after a stretch inside starts or ends, and each segment's kind
     // (INSIDE the surface, NEAR: within `lead` meters along the path of a stretch inside, else CLEAR); count: the
     // stretches inside, over every path. A point over a surface not loaded is taken as clear of it.
+    // band: {margin (meters), maxes: [[the highest surface near each piece of each path, or null]]} (bandMaxes in
+    // pointer_height.js): a piece is then inside where its lowest point is less than the margin above that surface,
+    // and the path is kept as it is (the pieces are short, STEP). Without it, a piece is inside where the path is under
+    // the surface read at its points, and the crossings are added.
     // {paths: [[[lng, lat, asl], ...]], kinds: [[kind of each segment]], count}
-    function collide(paths, surfaceAt, lead) {
+    function collide(paths, surfaceAt, lead, band) {
         lead = lead === undefined ? LEAD : lead;
         var count = 0;
-        var out = paths.map(function (path) {
-            var clearance = path.map(function (p) {
-                var s = surfaceAt(p[0], p[1]);
-                return s === null || !isFinite(s) ? null : p[2] - s;
-            });
-            // The points where the path crosses the surface added, with their clearance (0)
-            var pts = [], gaps = [];
-            path.forEach(function (p, i) {
-                var a = clearance[i - 1], b = clearance[i];
-                if (i > 0 && a !== null && b !== null && (a < 0) !== (b < 0)) {
-                    var f = a / (a - b);
-                    if (f > 0 && f < 1) { pts.push(lerp(path[i - 1], p, f)); gaps.push(0); }
+        var out = paths.map(function (path, pathIndex) {
+            var pts = [], hits = [];
+            if (band) {
+                var maxes = band.maxes[pathIndex] || [];
+                pts = path.map(function (p) { return p.slice(0, 3); });
+                for (var q = 1; q < pts.length; q++) {
+                    var top = maxes[q - 1];
+                    hits.push(typeof top === "number" && isFinite(top) && Math.min(pts[q - 1][2], pts[q][2]) - top < band.margin);
                 }
-                pts.push(p.slice(0, 3));
-                gaps.push(b);
-            });
+            } else {
+                var clearance = path.map(function (p) {
+                    var s = surfaceAt(p[0], p[1]);
+                    return s === null || !isFinite(s) ? null : p[2] - s;
+                });
+                // The points where the path crosses the surface added, with their clearance (0)
+                var gaps = [];
+                path.forEach(function (p, i) {
+                    var a = clearance[i - 1], b = clearance[i];
+                    if (i > 0 && a !== null && b !== null && (a < 0) !== (b < 0)) {
+                        var f = a / (a - b);
+                        if (f > 0 && f < 1) { pts.push(lerp(path[i - 1], p, f)); gaps.push(0); }
+                    }
+                    pts.push(p.slice(0, 3));
+                    gaps.push(b);
+                });
+                for (var g = 1; g < pts.length; g++) hits.push(gaps[g - 1] !== null && gaps[g] !== null && gaps[g - 1] + gaps[g] < 0);
+            }
             // The stretches inside, as distances along the path
             var at = [0], inside = [], open = null;
             for (var k = 1; k < pts.length; k++) {
                 at.push(at[k - 1] + meters(pts[k - 1], pts[k]));
-                var hit = gaps[k - 1] !== null && gaps[k] !== null && gaps[k - 1] + gaps[k] < 0;
+                var hit = hits[k - 1];
                 if (hit && !open) { open = [at[k - 1], at[k]]; inside.push(open); }
                 else if (hit) open[1] = at[k];
                 else open = null;
@@ -210,9 +225,16 @@
     }
 
     // The side panel's line about the collisions (2D and 3D): {text, hit}
-    function collisionText(count) {
+    // margin: the route's collision margin in meters (0 or none: the surface itself); system: "metric" or "imperial"
+    function collisionText(count, margin, system) {
+        var places = count + (count === 1 ? " place" : " places") + ": red on the map.";
+        if (margin > 0) {
+            var said = system === "imperial" ? Math.round(margin * M_TO_FT) + " ft" : (Math.round(margin * 10) / 10) + " m";
+            if (!count) return {text: "The route stays at least " + said + " above the surface.", hit: false};
+            return {text: "The route comes within " + said + " of the surface in " + places, hit: true};
+        }
         if (!count) return {text: "The route stays above the surface.", hit: false};
-        return {text: "The route goes into the surface in " + count + (count === 1 ? " place" : " places") + ": red on the map.", hit: true};
+        return {text: "The route goes into the surface in " + places, hit: true};
     }
 
     // Each point's height above the surface right under it (waypoint routes' labels), meters, null where unknown.
@@ -465,10 +487,23 @@
                     if (opts.onCollisions) opts.onCollisions(null);
                     return;
                 }
-                var hit = collide(resolved.paths, sampled);
-                current = {paths: hit.paths, kinds: hit.kinds, count: hit.count, points: resolved.points, drops: resolved.drops};
-                draw();
-                if (opts.onCollisions) opts.onCollisions(hit.count);
+                var margin = opts.margin ? opts.margin() : 0;
+                if (!opts.bandMaxes) return finish(collide(resolved.paths, sampled));
+                // with the band: every piece checked against the highest surface within the margin of it
+                var pieces = [];
+                resolved.paths.forEach(function (p) {
+                    for (var i = 1; i < p.length; i++) pieces.push([p[i - 1][0], p[i - 1][1], p[i][0], p[i][1]]);
+                });
+                return opts.bandMaxes(pieces, margin).then(function (found) {
+                    if (mine !== run) return;
+                    var next = 0, maxes = resolved.paths.map(function (p) { return found.slice(next, next += Math.max(p.length - 1, 0)); });
+                    finish(collide(resolved.paths, sampled, LEAD, {margin: margin, maxes: maxes}));
+                });
+                function finish(hit) {
+                    current = {paths: hit.paths, kinds: hit.kinds, count: hit.count, points: resolved.points, drops: resolved.drops};
+                    draw();
+                    if (opts.onCollisions) opts.onCollisions(hit.count);
+                }
             });
         }
 

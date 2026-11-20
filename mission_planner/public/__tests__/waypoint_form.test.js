@@ -33,7 +33,7 @@ const HTML = `
   <button type="button" id="b-direct" data-seg="takeoff_mode" data-value="direct">Direct</button>
   <button type="button" id="b-safe" data-seg="takeoff_mode" data-value="safe">Safe</button>
   <div id="mp-safe-row"><label id="mp-tsh-label"></label><input id="mp-tsh"></div>
-  <label id="mp-rth-label"></label><input id="mp-rth"><label id="mp-transitional-label"></label><input id="mp-transitional">
+  <label id="mp-rth-label"></label><input id="mp-rth"><label id="mp-transitional-label"></label><input id="mp-transitional"><label id="mp-collision-margin-label"></label><input id="mp-collision-margin">
   <select id="mp-finish"><option value="goHome">h</option><option value="autoLand">l</option></select>
   <select id="mp-rclost"><option value="goContinue">c</option><option value="executeLostAction">e</option></select>
   <input type="checkbox" id="mp-geozone">

@@ -17,6 +17,8 @@
         // degrees/percent, no unit conversion, like direction/overlap_h/overlap_w. inclined_speed converts like speed.
         collection_mode: {id: "mp-collection-mode"}, surface_follow: {id: "mp-surface-follow"}, gimbal_pitch: {id: "mp-gimbal-pitch"},
         terrain_source: {id: "mp-terrain-source"},
+        // the editor's collision check: how close to the surface the route may pass (route_3d.js), never sent to the server
+        collision_margin: {id: "mp-collision-margin", unit: "length"},
         inclined_overlap_h: {id: "mp-inclined-overlap-h"}, inclined_overlap_w: {id: "mp-inclined-overlap-w"},
         inclined_speed: {id: "mp-inclined-speed", unit: "speed"},
         // ASL only: the WGS84-ellipsoidal ground height at the takeoff point. Like takeoff_altitude, a length in
@@ -45,6 +47,7 @@
         takeoff_altitude: {id: "mp-takeoff-altitude-label", text: "Ground height at the takeoff point (%s above sea level)"},
         takeoff_security_height: {id: "mp-tsh-label", text: "Safe takeoff altitude (%s)"},
         rth_height: {id: "mp-rth-label", text: "Return height (%s)"},
+        collision_margin: {id: "mp-collision-margin-label", text: "Collision margin (%s)"},
         margin: {id: "mp-margin-label", text: "Margin (%s)"},
         left_extend: {id: "mp-left-extend-label", text: "Width to the left (%s)"},
         right_extend: {id: "mp-right-extend-label", text: "Width to the right (%s)"},

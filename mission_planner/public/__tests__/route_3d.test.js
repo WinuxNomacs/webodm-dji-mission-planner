@@ -233,6 +233,34 @@ describe("the collisions with the surface", () => {
         expect(new Set(hit.kinds[0])).toEqual(new Set([R.CLEAR]));
     });
 
+    // The highest surface near each piece of each path (pointer_height.js's bandMaxes), from `near(meters east of the piece's middle)`
+    const band = (paths, near) => paths.map(p => p.slice(1).map((q, j) => near(((p[j][0] + q[0]) / 2 - LNG) * M_PER_DEG)));
+
+    it("with a margin, is red where a piece passes less than the margin above the highest surface near it", () => {
+        const p = path(100);
+        const hit = R.collide([p], flat(60), undefined, {margin: 2, maxes: band([p], m => (m >= 40 && m < 60 ? 98.5 : 60))});
+        expect(hit.count).toBe(1);
+        expect(stretches(hit)[R.INSIDE]).toEqual([[40, 60]]);
+    });
+
+    it("with a margin, a piece is clear when its lowest point is the margin or more above the surface near it", () => {
+        const p = path(100).map((q, i) => [q[0], q[1], i % 2 ? 100 : 101]);
+        expect(R.collide([p], flat(60), undefined, {margin: 2, maxes: band([p], () => 98)}).count).toBe(0);
+        expect(R.collide([p], flat(60), undefined, {margin: 2, maxes: band([p], () => 98.5)}).count).toBe(1);   // 100 - 98.5 < 2
+    });
+
+    it("with a margin, takes a piece over a surface not loaded as clear of it", () => {
+        const p = path(50);
+        expect(R.collide([p], flat(60), undefined, {margin: 2, maxes: band([p], () => null)}).count).toBe(0);
+    });
+
+    it("says how many places the route comes within its margin of the surface, in the chosen units", () => {
+        expect(R.collisionText(0, 2, "metric")).toEqual({text: "The route stays at least 2 m above the surface.", hit: false});
+        expect(R.collisionText(1, 2, "metric")).toEqual({text: "The route comes within 2 m of the surface in 1 place: red on the map.", hit: true});
+        expect(R.collisionText(3, 2.5, "imperial").text).toBe("The route comes within 8 ft of the surface in 3 places: red on the map.");
+        expect(R.collisionText(1, 0, "metric").text).toBe("The route goes into the surface in 1 place: red on the map.");
+    });
+
     it("says in the side panel how many places the route goes into the surface", () => {
         expect(R.collisionText(0)).toEqual({text: "The route stays above the surface.", hit: false});
         expect(R.collisionText(1)).toEqual({text: "The route goes into the surface in 1 place: red on the map.", hit: true});
@@ -350,6 +378,21 @@ describe("the layer on the map", () => {
         r3d.show(true);
         await r3d.setAir(null, null);
         expect(counts).toEqual([0, 1, null]);
+    });
+
+    it("checks each piece against the highest surface within the route's margin, when it has one", async () => {
+        const map = fakeMap(), counts = [], asked = [];
+        let margin = 2;
+        const r3d = R.createRoute3d({maplibregl, map, id: "mp-route-3d", heightsAt: sampler({value: 216}).heightsAt,
+                                     bandMaxes: (pieces, radius) => { asked.push([pieces.length, radius]); return Promise.resolve(pieces.map(() => 229)); },
+                                     margin: () => margin, onCollisions: n => counts.push(n)});
+        await r3d.setAir(through, null);                          // 230 m: 1 m above the highest surface near it, under 2 m
+        margin = 0.5;
+        await r3d.refresh();
+        expect(counts).toEqual([1, 0]);
+        expect(asked[0][1]).toBe(2);
+        expect(asked[1][1]).toBe(0.5);
+        expect(asked[0][0]).toBe(r3d.resolved().paths[0].length - 1);   // every piece of the path
     });
 
     it("draws the stretches on the 2D map's layer in 2D, and only the 3D layer in 3D", async () => {

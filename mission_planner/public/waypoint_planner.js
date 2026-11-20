@@ -32,7 +32,9 @@
     // -- forms --------------------------------------------------------------------------------------------------------
 
     // The form's callbacks fire for real user edits only (write() sets values without events), as in planner.js
-    function onFormChange() { setDirty(true); terrainSourceChanged(); showGroundStatus(); showPoi(); shapeChanged(); if (isPoiRoute) showLoopsHint(); aslModeChanged(); schedulePlan(); }
+    function onFormChange() { setDirty(true); marginChanged(); terrainSourceChanged(); showGroundStatus(); showPoi(); shapeChanged(); if (isPoiRoute) showLoopsHint(); aslModeChanged(); schedulePlan(); }
+    // A changed collision margin checks the route against the surface again (the plan itself does not change)
+    function marginChanged() { if (route3d && checkedMargin !== null && collisionMargin() !== checkedMargin) route3d.refresh(); }
 
     var routeModel = "m4t";
     try { routeModel = JSON.parse(document.getElementById("mp-route-model").textContent) || "m4t"; } catch (e) { routeModel = "m4t"; }
@@ -296,10 +298,14 @@
     var route3d = null;
 
     // The side panel's line about where the route goes into the surface (2D and 3D)
+    // The route's collision margin (the form's, in meters): how close to the surface it may pass, above or beside
+    function collisionMargin() { return Core.collisionMargin(form.read().collision_margin); }
+    var shownCount = null, checkedMargin = null;
     function showCollisions(count) {
+        shownCount = count;
         var el = document.getElementById("mp-collisions");
         if (!el) return;
-        var said = count === null || count === undefined ? null : window.MissionPlannerRoute3d.collisionText(count);
+        var said = count === null || count === undefined ? null : window.MissionPlannerRoute3d.collisionText(count, collisionMargin(), unitsSystem);
         el.hidden = !said;
         el.textContent = said ? said.text : "";
         el.classList.toggle("mp-hit", !!(said && said.hit));
@@ -1014,6 +1020,7 @@
         map.addLayer({id: "mp-takeoff", type: "circle", source: "mp-takeoff", paint: {"circle-radius": 7, "circle-color": "#43a047", "circle-stroke-color": "#fff", "circle-stroke-width": 2}});
         route3d = window.MissionPlannerRoute3d.createRoute3d({maplibregl: maplibregl, map: map, id: "mp-route-3d", before: "mp-takeoff",
                                                              heightsAt: heightReader.heightsAt,
+                                                             bandMaxes: heightReader.bandMaxes, margin: function () { checkedMargin = collisionMargin(); return checkedMargin; },
                                                              discs: false, onFrame: liftMarkers, onCollisions: showCollisions});
 
         restoreMapState();
@@ -1044,6 +1051,7 @@
     function applyUnits(system) {
         unitsSystem = system;
         form.setUnits(system);
+        showCollisions(shownCount);              // the margin in the chosen units
         showLabels();
         measure.relabel();
         [].forEach.call(root.querySelectorAll("[data-units]"), function (b) { b.classList.toggle("active", b.getAttribute("data-units") === system); });

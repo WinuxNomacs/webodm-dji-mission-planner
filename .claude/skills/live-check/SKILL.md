@@ -108,6 +108,11 @@ and read the page's console messages. A KMZ is uploaded with `setInputFiles` on 
   the map's last idle, requests by host, long tasks, frames; `MP_PROFILE=1` the main thread's top functions,
   `MP_TRACE=1` each request and elevation tile. Headless Chromium draws WebGL on SwiftShader; the script draws 2D
   canvases in software, since SwiftShader's canvas takes seconds to read back (not what a real GPU does). Deletes its route.
+- The collision margin and the tighter surface (Phase 22): `collision_margin_check.js` (beside this file; how to run it in
+  its first lines): copies an area route given by id (with lidar units built or buildable there: a stack's units from
+  before Phase 22 are built again once, about 25 s for two), checks the "Collision margin" field (2 m for a route saved
+  without it), the side panel's line at 2, 0 and 40 m, feet in imperial, the margin saved with the route, and a
+  waypoint route 60 m up (clear at 0.5 m, red at 100 m); screenshots in 3D. Deletes its routes.
 - The browser console has no new errors, nor `dev/webodm.sh logs webapp`.
 
 ## Before

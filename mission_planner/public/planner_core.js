@@ -20,7 +20,10 @@
         surface_follow: "realtime",
         // AGL over the terrain: "lidar" (the lidar surface, trees and roofs, where USGS lidar covers the route; else
         // COP30, saying why) or "cop30" (see lidar_terrain.py)
-        terrain_source: "lidar"
+        terrain_source: "lidar",
+        // The editor's collision check: the route is red where it passes closer than this (meters) to the surface, above
+        // or beside it (route_3d.js); a route saved without it gets this
+        collision_margin: "2"
     };
 
     // The same limits as the server's (app/missions): the page tells what is wrong before asking
@@ -449,7 +452,7 @@
         gimbal_pitch: "", heading_mode: "followWayline", turn_mode: "stop", takeoff_mode: "safe", takeoff_security_height: "20",
         rth_height: "100", transitional_speed: "15", finish_action: "goHome", exit_on_rc_lost: "goContinue",
         avoid_limit_area: "false", takeoff_altitude: "", takeoff_ellipsoidal_height: "", video: "false",
-        photo_interval_mode: "", photo_interval: "", terrain_source: "lidar"
+        photo_interval_mode: "", photo_interval: "", terrain_source: "lidar", collision_margin: "2"
     };
     var WAYPOINT_HEIGHT_MODES = ["alt", "asl", "agl"];
     // towardPOI: the aircraft faces the route's POI (a point kept beside the form, like the takeoff point)
@@ -1339,7 +1342,14 @@
         return {setDirty: setDirty, save: save, isDirty: function () { return dirty; }};
     }
 
-    var api = {failure: failure, DRONES: DRONES, GSD_PER_M: GSD_PER_M, GSD_PER_M_BY_MODEL: GSD_PER_M_BY_MODEL, copiedHeight: copiedHeight, gsdCm: gsdCm, heightForGsd: heightForGsd, roundTo: roundTo, OSM: OSM, TERRAIN_SOURCE: TERRAIN_SOURCE, basemapSource: basemapSource, chooseBasemap: chooseBasemap, DEFAULTS: DEFAULTS, LIMITS: LIMITS, parseForm: parseForm, requestBody: requestBody, bearing: bearing, distance: distance,
+    var MAX_COLLISION_MARGIN = 100;
+    // The route's collision margin in meters from the form's value (metric): the default for one blank or out of range
+    function collisionMargin(value) {
+        var n = parseFloat(value);
+        return isFinite(n) && n >= 0 && n <= MAX_COLLISION_MARGIN ? n : parseFloat(DEFAULTS.collision_margin);
+    }
+
+    var api = {collisionMargin: collisionMargin, failure: failure, DRONES: DRONES, GSD_PER_M: GSD_PER_M, GSD_PER_M_BY_MODEL: GSD_PER_M_BY_MODEL, copiedHeight: copiedHeight, gsdCm: gsdCm, heightForGsd: heightForGsd, roundTo: roundTo, OSM: OSM, TERRAIN_SOURCE: TERRAIN_SOURCE, basemapSource: basemapSource, chooseBasemap: chooseBasemap, DEFAULTS: DEFAULTS, LIMITS: LIMITS, parseForm: parseForm, requestBody: requestBody, bearing: bearing, distance: distance,
                longestSideDirection: longestSideDirection, areaBounds: areaBounds, rectangleCorners: rectangleCorners, formatArea: formatArea, formatDuration: formatDuration, formatDistance: formatDistance, summaryRows: summaryRows, parseCoordinates: parseCoordinates,
                photonLanguage: photonLanguage, photonUrl: photonUrl, photonSuggestions: photonSuggestions, suggestPlaces: suggestPlaces, showSuggestion: showSuggestion,
                metersToFeet: metersToFeet, feetToMeters: feetToMeters, mpsToMph: mpsToMph, mphToMps: mphToMps,

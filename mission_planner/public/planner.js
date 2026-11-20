@@ -27,7 +27,9 @@
 
     // routeForm's onChange fires for real user edits only (loadForm's write() below sets values directly, without
     // dispatching input/change events) - safe to mark the route dirty unconditionally here.
-    function onFormChange() { setDirty(true); showStrip(); aslModeChanged(); showTerrain(); schedulePlan(); }
+    function onFormChange() { setDirty(true); marginChanged(); showStrip(); aslModeChanged(); showTerrain(); schedulePlan(); }
+    // A changed collision margin checks the route against the surface again (the plan itself does not change)
+    function marginChanged() { if (route3d && checkedMargin !== null && collisionMargin() !== checkedMargin) route3d.refresh(); }
     // The route's aircraft model, rendered into the page like its settings: it sets the cameras and is sent with each
     // plan and export
     var routeModel = "m4t";
@@ -244,10 +246,14 @@
     var DRAPED = ["mp-lines", "mp-lines-bend", "mp-lines-roof", "mp-waypoints"];
     var route3d = null;
     // The side panel's line about where the route goes into the surface (2D and 3D)
+    // The route's collision margin (the form's, in meters): how close to the surface it may pass, above or beside
+    function collisionMargin() { return Core.collisionMargin(readForm().collision_margin); }
+    var shownCount = null, checkedMargin = null;
     function showCollisions(count) {
+        shownCount = count;
         var el = document.getElementById("mp-collisions");
         if (!el) return;
-        var said = count === null || count === undefined ? null : window.MissionPlannerRoute3d.collisionText(count);
+        var said = count === null || count === undefined ? null : window.MissionPlannerRoute3d.collisionText(count, collisionMargin(), unitsSystem);
         el.hidden = !said;
         el.textContent = said ? said.text : "";
         el.classList.toggle("mp-hit", !!(said && said.hit));
@@ -858,6 +864,7 @@
         map.addLayer({id: "mp-start", type: "circle", source: "mp-start", paint: {"circle-radius": 7, "circle-color": "#fb8c00", "circle-stroke-color": "#fff", "circle-stroke-width": 2}});
         route3d = window.MissionPlannerRoute3d.createRoute3d({maplibregl: maplibregl, map: map, id: "mp-route-3d", before: "mp-takeoff",
                                                              heightsAt: heightReader.heightsAt, flatBefore: "mp-waypoints", discs: true,
+                                                             bandMaxes: heightReader.bandMaxes, margin: function () { checkedMargin = collisionMargin(); return checkedMargin; },
                                                              onCollisions: showCollisions});
         if (state.air) route3d.setAir(state.air, state.takeoff ? [state.takeoff[1], state.takeoff[0]] : null);
 
@@ -954,6 +961,7 @@
     function applyUnits(system) {
         unitsSystem = system;
         routeForm.setUnits(system);
+        showCollisions(shownCount);              // the margin in the chosen units
         measure.relabel();
         [].forEach.call(root.querySelectorAll("[data-units]"), function (b) { b.classList.toggle("active", b.getAttribute("data-units") === system); });
     }

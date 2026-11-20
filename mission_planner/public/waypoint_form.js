@@ -19,7 +19,9 @@
         // ASL only, written by the "fetch from elevation data" action (as in route_form.js)
         takeoff_ellipsoidal_height: {id: "mp-takeoff-ellipsoidal-height", unit: "length"},
         // AGL: the terrain the ground heights come from, "lidar" or "cop30" (as in route_form.js)
-        terrain_source: {id: "mp-terrain-source"}
+        terrain_source: {id: "mp-terrain-source"},
+        // the editor's collision check: how close to the surface the route may pass (route_3d.js), never sent to the server
+        collision_margin: {id: "mp-collision-margin", unit: "length"}
     };
 
     // The selected point's fields; height is a length, the rest degrees, seconds and a switch
@@ -50,6 +52,7 @@
         takeoff_altitude: {id: "mp-takeoff-altitude-label", text: "Ground height at the takeoff point (%s above sea level)"},
         takeoff_security_height: {id: "mp-tsh-label", text: "Safe takeoff altitude (%s)"},
         rth_height: {id: "mp-rth-label", text: "Return height (%s)"},
+        collision_margin: {id: "mp-collision-margin-label", text: "Collision margin (%s)"},
         speed: {id: "mp-speed-label", text: "Flight speed (%s)"},
         transitional_speed: {id: "mp-transitional-label", text: "Takeoff speed (%s)"}
     };
