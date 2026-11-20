@@ -1015,8 +1015,36 @@ route that passes close to a building show "stays above" where it now shows a co
    (MapLibre's `color-relief` layer), no imagery, so nothing can be misaligned. The tiles are already loaded.
 4. **Blocks (option B), parked:** the most work, and the slowest to draw; reconsidered only if 1-3 fall short.
 
-**To decide:** whether collisions keep a margin (how many metres) once the surface is tight; whether "Relief" is
-wanted in the layers panel; the screenshot's place, for the measurement (not written in the repo).
+The screenshot's place: the user's own TestAreaRoute route on the dev stack, which the check may copy (the copy
+deleted after; the place is not written in the repo).
+
+**Collisions today** (`route_3d.js` `collide`): the path is cut into 5 m pieces (`STEP`), the surface read at each
+piece's end (zoom 18, `pointer_height.js`), and a stretch is "inside" where the path is below it (clearance under 0);
+the yellow is 10 m along the path before and after (`LEAD`), not a distance from the surface. No margin, up or
+sideways. The 1.4 m widening is the only sideways margin today, and it also covers some of what the 5 m sampling
+misses (a chimney or pole narrower than a piece, between two readings).
+
+**A collision margin would need:**
+- *Up:* a stretch flagged where the clearance is under the margin, not under 0: one comparison in `collide`, its
+  wording ("comes within N m of the surface in 2 places"), and the 2D and 3D counts, which share `collide`.
+- *Sideways:* the surface at each reading taken as the highest within the margin around it (the zoom-18 pixels in a
+  disc, from tiles the reader already holds, about 1 m apart), with the margin at least half a piece (2.5 m), so
+  nothing narrower than a piece slips between readings. More reads per route: to be measured (Phase 21's script),
+  for the largest route (20,000 pieces, `MAX_POINTS`).
+- *Where the number lives* (the user's choice): a fixed value in the code; or a field in each editor's form, saved
+  with the route; or one per browser, like the lidar switch.
+- Tests: `collide` with a margin, the sideways disc, the wording; the collision live checks again.
+
+**A "Relief" ground would need:**
+- *The layers panel* (`layers_panel.js`, beside the basemaps or under "Lidar surface (US)"): "Imagery / Relief",
+  remembered per browser like the lidar switch. Its copy in webodm-geojson is not changed (a new feature, not a fix).
+- *The map:* the basemap hidden, a `color-relief` layer on `mp-dem` under the hillshade, and the hillshade stronger
+  (`multidirectional`). Colour by height above sea level shows a 20 m building in a 250 m town as a faint step, so
+  the colour scale is set from the heights round the route (its lowest and highest, read with the pointer's reader)
+  and set again when the route moves. Whether `color-relief` drapes on MapLibre 6.16.0's terrain is to be checked.
+- *3D only, or 2D too:* in 2D the elevation tiles are not loaded today (the user's choice: it costs downloads).
+- *What is lost while it shows:* the basemap's roads and labels (or a faint basemap kept over it, the user's choice).
+- Tests: Jest for the panel and the scale; a live check with screenshots in both editors.
 
 ## Lidar regions: Phases 23-25 (planned 2026-11-20, kept for later)
 
