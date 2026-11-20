@@ -179,6 +179,9 @@ def fetch(points, source="lidar", enqueue=None):
         made = from_units(points, b, usable)
     except geoid.GeoidError as e:
         return cop30(points, "lidar", "the GEOID18 grid could not be had (%s)" % e)
+    except OSError as e:       # rasterio's RasterioIOError too: a unit removed by the lidar folder's cap meanwhile
+        logger.warning("DJI Mission Planner: lidar terrain not made: %s", e)
+        return cop30(points, "lidar", "the lidar surface changed while it was read: fetch the terrain again for lidar")
     if made is None:
         return cop30(points, "lidar", "no USGS lidar here")
     return made

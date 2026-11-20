@@ -1098,7 +1098,10 @@ class LidarTileView(APIView):
         path = lidar.tile_path(int(z), int(x), int(y))
         if path is None:
             raise Http404("No lidar tile here")
-        with open(path, "rb") as f:
-            response = HttpResponse(f.read(), content_type="image/png")
+        try:
+            with open(path, "rb") as f:
+                response = HttpResponse(f.read(), content_type="image/png")
+        except FileNotFoundError:
+            raise Http404("No lidar tile here")     # removed by the lidar folder's cap since it was found
         response["Cache-Control"] = "private, max-age=3600"
         return response

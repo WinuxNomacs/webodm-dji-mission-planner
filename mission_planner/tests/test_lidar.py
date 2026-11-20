@@ -523,6 +523,11 @@ class TestLidarApi(LidarTestCase):
         self.assertEqual(self.client.get(API + "lidar/tiles/14/1/1.png").status_code, 404)
         self.assertEqual(self.client.get(API + "lidar/tiles/18/999999999/1.png").status_code, 404)
 
+    def test_a_tile_removed_while_it_is_served_is_404(self):
+        # the lidar folder's cap can remove a unit between finding its tile and reading it
+        with mock.patch.object(lidar, "tile_path", return_value=os.path.join(tempfile.gettempdir(), "mp-no-such-tile.png")):
+            self.assertEqual(self.client.get(API + "lidar/tiles/15/%d/%d.png" % self.unit).status_code, 404)
+
 
 class TestLidarSettings(LidarTestCase):
     def setUp(self):
