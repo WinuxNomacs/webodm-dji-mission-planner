@@ -8,7 +8,9 @@ to its title.
 
 **Up next**
 
-Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views
+1. **Phase 20: a loading indicator for the 3D view's elevation** (planned 2026-11-20). Details in its section.
+
+Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views
 of the replaced commits, then make it public.
 
 Listing in WebODM-Plugins (the user, 2026-11-20, after talking with WebODM's maintainer, who suggested it): from now
@@ -34,9 +36,9 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    is in the Phase 5 section.
 2. **Mavic 3M multispectral** (the user, 2026-11-19: after 15b): the `narrow_band` lens as a third camera choice,
    once a real M3M file or a DJI source confirms its name and payload sub value.
-3. **Lidar regions, England and Canada** (planned 2026-11-20, kept for later by the user the same day): Phase 20
-   (the lidar made pluggable by region, the US its first), Phase 21 (the Environment Agency's 1 m surface, Tower
-   Bridge), Phase 22 (Natural Resources Canada's 1 m surface, Canmore; Lake Louise for the fallback). The design and
+3. **Lidar regions, England and Canada** (planned 2026-11-20, kept for later by the user the same day): Phase 21
+   (the lidar made pluggable by region, the US its first), Phase 22 (the Environment Agency's 1 m surface, Tower
+   Bridge), Phase 23 (Natural Resources Canada's 1 m surface, Canmore; Lake Louise for the fallback). The design and
    the vetting are in the "Lidar regions" section; vet the sources again before building.
 4. **Scotland, Wales and Northern Ireland** (the user, 2026-11-20: after England): each nation's lidar as a region,
    once its service is vetted (the Scottish Remote Sensing Portal, Natural Resources Wales through DataMapWales,
@@ -861,7 +863,44 @@ fetch keeps the new point's height, no fetch on opening a waypoint route in ASL,
 the hint with no dialog, Fetch from elevation data clearing the hints; routes deleted.
 
 
-## Lidar regions: Phases 20-22 (planned 2026-11-20, kept for later)
+## Phase 20: a loading indicator for the 3D view's elevation (planned 2026-11-20)
+
+The request (the user, 2026-11-20): make it obvious when the viewer is still loading and drawing the elevation for
+the area.
+
+**Today** (read 2026-11-20). The status bar at the bottom middle of the map (`lidar_surface.js` `createStatusBar`,
+`.mp-lidar-status`, in both editors: `planner.js`, `waypoint_planner.js`) speaks only about the lidar units: a
+spinner and "Building the lidar surface (2 of 6)" while the server builds them, then a note for 6 s ("No lidar
+here: the standard terrain is used", a failure). Once the units are built, or with the lidar surface off, or where
+there is no lidar, MapLibre fetches and draws the elevation tiles (source `mp-dem`: the lidar tiles through the
+`mplidar://` protocol, or AWS's Terrarium tiles) with no sign: the ground rises piece by piece, and panning or
+zooming in 3D loads more.
+
+**The design.**
+- In 3D only (2D has no raised ground), in both editors: while `mp-dem` has tiles loading or the map has not drawn
+  them, the status bar shows a spinner and "Loading elevation…". MapLibre 6.16.0 says when (in its typings, read
+  2026-11-20): `sourcedataloading` for `mp-dem` starts it, `idle` (everything loaded and drawn) ends it, checked with
+  `isSourceLoaded("mp-dem")`. It comes back when panning or zooming loads more, when the lidar surface is switched on
+  or off, and when new lidar units replace the tiles.
+- It shows only after the loading has lasted 400 ms, so a quick pan from the browser's cache does not flash it.
+- One bar, one message: a lidar build in progress keeps its own message (it is the longer wait, and says how far it
+  is); otherwise "Loading elevation…"; a note (no lidar here, a failure) shows once the loading is over, for its
+  usual few seconds. The bar's state is a small function of the three (build status, loading, note) in
+  `lidar_surface.js`, so it is tested without a map.
+- Leaving 3D hides it. A tile that fails still ends in `idle` (MapLibre counts it as done), so the message cannot
+  stay forever; failures keep falling back as today (`mplidar://` answers AWS's tile).
+
+**Tests.** Jest (`lidar_surface.test.js`, fake timers): the 400 ms delay, the build message winning over loading,
+the note after loading, hidden on leaving 3D, shown again on new loading; seen failing first. Live check (both
+editors, 3D, the Illinois sample and a place with no lidar): with the tile requests slowed by `page.route`, the
+message shows, then hides once the map is drawn (screenshots of both); the console has no new errors. ESLint, Jest.
+
+**Docs.** README (the 3D view's paragraph), CHANGELOG (Unreleased).
+
+**Decided with the user (2026-11-20):** the message goes in the existing status bar, not a separate spinner by the
+map's buttons.
+
+## Lidar regions: Phases 21-23 (planned 2026-11-20, kept for later)
 
 The request (the user, 2026-11-20): USGS lidar covers only the US; add Canada and the UK, as pluggable regions so
 that more can be added. Samples: Tower Bridge (London) for the UK, the Lake Louise area for Canada.
@@ -885,7 +924,7 @@ AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` 
   NONE, no key; Open Government Licence (attribution: Environment Agency copyright). GetCoverage with `subset=E(..)`
   and `subset=N(..)` in EPSG:27700 returned a 1 m float32 GeoTIFF, EPSG:27700, nodata -3.4e38, in about 1.3 s for
   200 x 200 m. Tower Bridge (250 x 350 m): every cell set, 1.9 to 70.5 m (the towers). Heights ODN (from training
-  knowledge: to check in Phase 21's first step). Older composites (2017, 2020) were retired from the same platform:
+  knowledge: to check in Phase 22's first step). Older composites (2017, 2020) were retired from the same platform:
   the coverage id may change with a new composite. Not checked: the largest size a request accepts, any rate limit.
 - **Canada**: Natural Resources Canada's HRDEM Mosaic 1m (CanElevation), DSM and DTM as cloud-optimized GeoTIFFs in
   the public AWS bucket `canelevation-dem` (ca-central-1), one 500 km tile per item in the STAC API
@@ -935,10 +974,10 @@ AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` 
 - **Fixtures**: small DSM cuts saved from the live services (Tower Bridge, Canmore, an empty Lake Louise answer),
   a few hundred KB each, kept under `tests/fixtures/lidar/<region>/`. These are public landmarks chosen by the user,
   not places anyone flew: the rule in CLAUDE.md that moves fixtures off real places is about flight samples, and its
-  wording is made to say so in Phase 21. No live service is called by the tests (`tests/__init__.py` refuses it, as
+  wording is made to say so in Phase 22. No live service is called by the tests (`tests/__init__.py` refuses it, as
   it refuses the lidar builds).
 
-**Phase 20: lidar regions** (US only; no visible change but reasons' wording)
+**Phase 21: lidar regions** (US only; no visible change but reasons' wording)
 1. `regions.json` with the US entry; `missions/regions.py` (read, check, `region_for(unit)`, the kinds' registry);
    `lidar.build_unit` asks the unit's region to make its DSM and records the region; `ept` kind from today's code;
    `geoid.shift` from `navd88_shift`; `lidar_terrain` per unit's region, `in_conus` replaced by the regions' boxes.
@@ -948,7 +987,7 @@ AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` 
    Illinois sample, and Paris still says no lidar.
 3. Docs: CLAUDE.md (regions.json beside drones.json), README (wording only).
 
-**Phase 21: England** (the `wcs` kind)
+**Phase 22: England** (the `wcs` kind)
 1. Capture first: Tower Bridge's GetCoverage for a whole unit with its overlap (the size and time), the largest
    request accepted, the error document for a bad request and for a point outside England (sea off Kent), the PROJ
    pipeline for EPSG:27700+5701 to EPSG:4979 with OSTN15 and OSGM15 (and its result at Tower Bridge against OS's own
@@ -960,7 +999,7 @@ AWS's terrain), the cap, the states, the collisions, the Pointer, `datum_check` 
    KMZ's DSM; a route over the Channel says no lidar. About 2 OpenTopography calls (COP30 for the fallback).
 4. CLAUDE.md's fixture rule says it is about flight samples; README; CHANGELOG (Unreleased).
 
-**Phase 22: Canada** (the `stac-cog` kind)
+**Phase 23: Canada** (the `stac-cog` kind)
 1. Capture first: the STAC answer and a unit's window at Canmore, the answer at Lake Louise (an item whose window is
    all nodata), the PROJ pipeline for EPSG:3979 + CGVD2013 to EPSG:4979 (CGG2013a, and NAD83(CSRS) to WGS84 at the
    current epoch, as GEOID18's Helmert step), checked against NRCan's GPS-H at a point if it answers.
