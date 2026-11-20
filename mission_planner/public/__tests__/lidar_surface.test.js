@@ -221,8 +221,9 @@ describe("watching the map's elevation", () => {
 });
 
 describe("lidar surface", () => {
-    let timers, statuses, tileChanges, clock;
+    let timers, statuses, tileChanges, clock, decoded;
     const make = (handler, over = {}) => {
+        decoded = [];
         timers = [];
         statuses = [];
         tileChanges = [];
@@ -232,7 +233,8 @@ describe("lidar surface", () => {
             fetch, api: API, csrf: "token", now: () => clock,
             setTimeout: (f, ms) => { timers.push({f, ms}); return timers.length; }, clearTimeout: id => { timers[id - 1] = null; },
             onStatus: s => statuses.push(s), onTilesChanged: t => tileChanges.push(t),
-            crop: (blob, c) => Promise.resolve({cropped: c, from: blob.url})
+            decodeParent: blob => { decoded.push(blob.url); return Promise.resolve({image: blob.url}); },
+            crop: (image, c) => Promise.resolve({cropped: c, from: image.image})
         }, over));
         return {surface, fetch};
     };
@@ -284,6 +286,44 @@ describe("lidar surface", () => {
         const r = await surface.load({url: "mplidar://17/409/802?v=1"});        // unit 102_200: not built
         expect(fetch.calls.pop().url).toBe(AWS + "15/102/200.png");
         expect(r.data).toEqual({cropped: {x: 102, y: 200, left: 64, top: 128, size: 64}, from: AWS + "15/102/200.png"});
+    });
+
+    it("decodes each zoom-15 parent once for all the tiles cut from it", async () => {
+        const {surface, fetch} = make(() => ({status: 200}));
+        const r = await Promise.all([surface.load({url: "mplidar://17/409/802?v=0"}), surface.load({url: "mplidar://17/410/802?v=0"}),
+                                     surface.load({url: "mplidar://18/819/1604?v=0"})]);
+        expect(fetch.calls.map(c => c.url)).toEqual([AWS + "15/102/200.png"]);
+        expect(decoded).toEqual([AWS + "15/102/200.png"]);
+        expect(r.map(t => t.data.cropped.left)).toEqual([64, 128, 96]);
+    });
+
+    it("fetches a parent again for the next tile when it could not be had", async () => {
+        let fail = true;
+        const {surface, fetch} = make(() => fail ? {status: 503} : {status: 200});
+        await expect(surface.load({url: "mplidar://17/409/802?v=0"})).rejects.toThrow("HTTP 503");
+        fail = false;
+        const r = await surface.load({url: "mplidar://17/410/802?v=0"});
+        expect(fetch.calls.length).toBe(2);
+        expect(r.data.from).toBe(AWS + "15/102/200.png");
+    });
+
+    it("keeps a tile's parent for the others when that tile is cancelled", async () => {
+        const {surface, fetch} = make(() => ({status: 200}));
+        const ac = new AbortController();
+        const first = surface.load({url: "mplidar://17/409/802?v=0"}, ac);
+        ac.abort();
+        await expect(first).rejects.toThrow();
+        const r = await surface.load({url: "mplidar://17/410/802?v=0"});
+        expect(r.data.from).toBe(AWS + "15/102/200.png");
+        expect(fetch.calls.length).toBe(1);
+    });
+
+    it("keeps only the last parents it decoded", async () => {
+        const {surface, fetch} = make(() => ({status: 200}));
+        for (let i = 0; i <= L.PARENTS; i++) await surface.load({url: "mplidar://16/" + (2 * i) + "/400?v=0"});
+        await surface.load({url: "mplidar://16/0/400?v=0"});                // the first, dropped since
+        await surface.load({url: "mplidar://16/" + (2 * L.PARENTS) + "/400?v=0"});   // the last, still kept
+        expect(fetch.calls.length).toBe(L.PARENTS + 2);
     });
 
     it("falls back on AWS when a built unit's tile cannot be had", async () => {

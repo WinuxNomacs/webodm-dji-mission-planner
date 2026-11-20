@@ -947,6 +947,33 @@ and after.
 **Open decisions** (asked once the baseline is in): which loads matter most (the first entry into 3D, a pan in 3D,
 switching back and forth); whether the ground may load in 2D before it is shown; a target, if the user has one.
 
+**Measured (2026-11-20, `perf_3d_check.js`, the Illinois sample's area route, 3 runs, medians; headless Chromium,
+WebGL on SwiftShader, so drawing is slower than with a GPU; the machine otherwise idle):**
+- First, with SwiftShader's 2D canvas: lidar on, the first switch into 3D took 9 to 14 s, with 7 to 12 s of long
+  tasks even from the cache. The profile: `convertToBlob` (12 s), `cropInBrowser` encoding a PNG for each zoom-16 to 18
+  tile cut from AWS's zoom 15. With the image handed over as it is, the long tasks went (87 ms), but the map was still
+  not drawn for 6 to 9 s: the tiles came within 0.6 s and became ready in batches at 7 and 10 s, MapLibre's worker
+  reading the images back from SwiftShader's canvas. Reading a canvas back is slow on SwiftShader, not on a GPU, so
+  the script now draws 2D canvases in software (`--disable-accelerated-2d-canvas`) and these first figures overstate
+  what a browser with a GPU does.
+- With the software canvas, lidar on: the first switch into 3D (empty cache) 2.2 s before, 1.9 s after (1.5 to 2.2 s
+  over the runs); after a reload 1.45 s before, 0.99 s after; lidar off 1.5 to 1.8 s and 0.7 to 0.9 s. A pan in 3D
+  1.1 to 1.4 s either way. The lidar tiles come from Django in about 20 ms each: not a cause.
+- The old and new crops give the same pixels, and the source's own pixels enlarged (checked in Chromium on both
+  canvases, three tiles, 2026-11-20).
+
+**Built (this branch):** `lidar_surface.js` hands MapLibre an `ImageBitmap` (MapLibre 6.16.0 takes one from a protocol
+as it is: `util/image_request.ts`), and decodes each zoom-15 parent once for the tiles cut from it (the last 16 kept,
+`PARENTS`); `pointer_height.js` reads such an image too (a lidar tile that fails falls back on a cut one).
+
+**Tried and dropped:** keeping `mp-dem` across 2D/3D switches. MapLibre reloads a source's tiles whenever the terrain is
+turned on (`setTerrain`: `if (this.terrain === null) tileManager.reload()`), so it changed nothing.
+
+**Still open:** the second switch into 3D on the same page takes 2.4 to 2.7 s (lidar off or on), against 0.7 to 0.9 s
+after a reload. The main thread is idle, and MapLibre requests most of the tiles only about 1.6 s after the switch:
+the wait is inside MapLibre, not found yet. MapLibre also warns that one source for both the hillshade and the
+terrain lowers the quality of the drawing (Phase 22).
+
 ## Phase 22: a sharper 3D ground (requested 2026-11-20, planned the same day)
 
 The request (`new.md`, 2026-11-20): "Would the buildings, trees and such look less stretched and blurred if instead

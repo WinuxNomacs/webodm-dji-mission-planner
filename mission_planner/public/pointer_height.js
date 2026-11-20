@@ -25,9 +25,13 @@
         return system === "imperial" ? Math.round(meters * M_TO_FT) + " ft" : meters.toFixed(1) + " m";
     }
 
-    // A tile's PNG bytes as RGBA pixels (256 x 256 x 4). The browser's version; the tests pass their own.
+    // A tile's PNG bytes, or its image (a tile cut from AWS's zoom 15: lidar_surface.js), as RGBA pixels (256 x 256 x 4).
+    // The browser's version; the tests pass their own.
     function decodeInBrowser(buffer) {
-        return root.createImageBitmap(new root.Blob([buffer], {type: "image/png"})).then(function (image) {
+        var isImage = typeof root.ImageBitmap === "function" && buffer instanceof root.ImageBitmap;
+        var image = isImage ? Promise.resolve(buffer)
+            : root.createImageBitmap(new root.Blob([buffer], {type: "image/png"}), {colorSpaceConversion: "none", premultiplyAlpha: "none"});
+        return image.then(function (image) {
             var canvas = typeof root.OffscreenCanvas === "function" ? new root.OffscreenCanvas(TILE, TILE) : root.document.createElement("canvas");
             canvas.width = canvas.height = TILE;
             var ctx = canvas.getContext("2d", {willReadFrequently: true});

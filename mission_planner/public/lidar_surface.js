@@ -11,6 +11,7 @@
     var UNIT_ZOOM = 15, MAX_ZOOM = 18, TILE = 256;
     var POLL_MS = 2000, POLL_DEADLINE_MS = 10 * 60 * 1000, NOTE_MS = 6000;
     var LOADING_DELAY_MS = 400, LOADING_TEXT = "Loading elevation…";
+    var PARENTS = 16;                       // decoded zoom-15 AWS tiles kept, to cut the tiles above zoom 15 from
     var ATTRIBUTION = 'Terrain: <a href="https://www.usgs.gov/3d-elevation-program">USGS 3DEP lidar</a> and ' +
                       '<a href="https://registry.opendata.aws/terrain-tiles/">Terrain Tiles</a>';
 
@@ -129,20 +130,21 @@
         return {check: check};
     }
 
-    // Draws `size` x `size` pixels of a tile image, from (left, top), enlarged to 256 x 256 without blending, and
-    // answers it as PNG bytes. The browser's version; the tests pass their own.
-    function cropInBrowser(blob, crop) {
-        return root.createImageBitmap(blob).then(function (image) {
-            var canvas = typeof root.OffscreenCanvas === "function" ? new root.OffscreenCanvas(TILE, TILE) : root.document.createElement("canvas");
-            canvas.width = canvas.height = TILE;
-            var ctx = canvas.getContext("2d");
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(image, crop.left, crop.top, crop.size, crop.size, 0, 0, TILE, TILE);
-            if (image.close) image.close();
-            var png = canvas.convertToBlob ? canvas.convertToBlob({type: "image/png"})
-                : new Promise(function (resolve) { canvas.toBlob(resolve, "image/png"); });
-            return png.then(function (b) { return b.arrayBuffer(); });
-        });
+    // A tile's PNG as an image, its colours as they are (they encode heights). The browser's version; the tests pass their own.
+    function decodeInBrowser(blob) {
+        return root.createImageBitmap(blob, {colorSpaceConversion: "none", premultiplyAlpha: "none"});
+    }
+
+    // Draws `size` x `size` pixels of a decoded tile image, from (left, top), enlarged to 256 x 256 without blending,
+    // and answers it as an ImageBitmap, which MapLibre takes from a protocol as it is (encoding it as PNG again took
+    // most of the 3D view's load, Phase 21). The browser's version; the tests pass their own.
+    function cropInBrowser(image, crop) {
+        var canvas = typeof root.OffscreenCanvas === "function" ? new root.OffscreenCanvas(TILE, TILE) : root.document.createElement("canvas");
+        canvas.width = canvas.height = TILE;
+        var ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(image, crop.left, crop.top, crop.size, crop.size, 0, 0, TILE, TILE);
+        return root.createImageBitmap(canvas);
     }
 
     // opts: {maplibregl, fetch, api, csrf, onStatus(status|null), onTilesChanged(tiles), crop(blob, crop), now(),
@@ -151,8 +153,24 @@
     function createLidarSurface(opts) {
         var fetchFn = opts.fetch, now = opts.now || function () { return Date.now(); };
         var later = opts.setTimeout || setTimeout.bind(root), cancel = opts.clearTimeout || clearTimeout.bind(root);
-        var crop = opts.crop || cropInBrowser;
+        var crop = opts.crop || cropInBrowser, decodeParent = opts.decodeParent || decodeInBrowser;
         var built = {}, version = 0, generation = 0, timer = null;
+        var parents = {}, parentOrder = [];     // zoom-15 AWS tiles, decoded once for every tile cut from them
+
+        // The decoded zoom-15 AWS tile, shared by the tiles above it: fetched without a tile's signal, since another
+        // tile may still need it; dropped when it fails, so that the next tile tries again
+        function parent(x, y) {
+            var key = x + "/" + y;
+            if (!parents[key]) {
+                var p = parents[key] = fetchFn(AWS.replace("{z}", UNIT_ZOOM).replace("{x}", x).replace("{y}", y), {credentials: "omit"})
+                    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); })
+                    .then(decodeParent);
+                p.catch(function () { if (parents[key] === p) { delete parents[key]; parentOrder.splice(parentOrder.indexOf(key), 1); } });
+                parentOrder.push(key);
+                if (parentOrder.length > PARENTS) delete parents[parentOrder.shift()];
+            }
+            return parents[key];
+        }
 
         function bytes(url, signal, credentials) {
             return fetchFn(url, {signal: signal, credentials: credentials || "omit"}).then(function (r) {
@@ -164,10 +182,10 @@
         function aws(z, x, y, signal) {
             if (z <= UNIT_ZOOM) return bytes(AWS.replace("{z}", z).replace("{x}", x).replace("{y}", y), signal);
             var c = parentCrop(z, x, y);
-            return fetchFn(AWS.replace("{z}", UNIT_ZOOM).replace("{x}", c.x).replace("{y}", c.y), {signal: signal, credentials: "omit"})
-                .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); })
-                .then(function (blob) { return crop(blob, c); })
-                .then(function (data) { return {data: data}; });
+            return parent(c.x, c.y).then(function (image) {
+                if (signal && signal.aborted) throw new Error("Cancelled");
+                return crop(image, c);
+            }).then(function (data) { return {data: data}; });
         }
 
         function load(params, abortController) {
@@ -271,7 +289,7 @@
         return {source: source, request: request, ensure: ensure, refresh: refresh, stop: stop, load: load, isBuilt: isBuilt};
     }
 
-    var api = {createLidarSurface: createLidarSurface, createStatusBar: createStatusBar, watchElevation: watchElevation,
+    var api = {createLidarSurface: createLidarSurface, createStatusBar: createStatusBar, watchElevation: watchElevation, PARENTS: PARENTS,
                boundsOf: boundsOf, statusOf: statusOf, parentCrop: parentCrop, unitOf: unitOf, unitsKey: unitsKey,
                POLL_MS: POLL_MS, POLL_DEADLINE_MS: POLL_DEADLINE_MS, NOTE_MS: NOTE_MS, LOADING_DELAY_MS: LOADING_DELAY_MS};
     root.MissionPlannerLidar = api;
