@@ -16,6 +16,9 @@ is WebODM 4.0.0 (`mp-webapp`, :8009).
    `docker exec -w /webodm mp-webapp python manage.py test --noinput $labels`.
    Before a merge, also WebODM's plugin tests: `app.tests.test_plugins`. Never two Django runs at once: they share
    the test database.
+   Work in a worktree: `mp-webapp` mounts the main checkout, so run the worktree's tests with
+   `.claude/skills/test/worktree_test.sh <worktree> <modules...>` (a throwaway `mp-test-worktree` container from the
+   same image, environment, network and volumes, the worktree's `mission_planner` mounted instead).
    A test run starts WebODM in test mode, which adds a `test` plugin row to the dev database; until the webapp
    restarts, Administration > Plugins fails (500). Remove the row afterwards:
    `docker exec -w /webodm mp-webapp python manage.py shell -c "from app.plugins.functions import sync_plugin_db; sync_plugin_db()"`.
