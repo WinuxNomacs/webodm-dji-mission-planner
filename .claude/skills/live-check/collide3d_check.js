@@ -96,10 +96,18 @@ async function in3d(page, name) {
     await in3d(page, 'area');
 
     const lat0 = air.paths[0][0][1], lon0 = air.paths[0][0][0];
+    // The ground under the takeoff point (AWS's terrain tile, read by the editor's own decoder): the sample was moved
+    // for publishing (Phase 18) to ground near 400 m, so a takeoff height made up would put "150 m up" into the hill
+    const ground = await page.evaluate(([lng, lat]) => {
+      const P = window.MissionPlannerPointerHeight, t = P.tileAt(lng, lat, 15);
+      return fetch('https://s3.amazonaws.com/elevation-tiles-prod/terrarium/15/' + t.x + '/' + t.y + '.png').then(r => r.arrayBuffer())
+        .then(P.decodeInBrowser).then(rgba => P.decodePixel(rgba, t.px, t.py));
+    }, [lon0, lat0]);
+    log('takeoff ground', ground.toFixed(1), 'm');
     for (const [name, low] of [['wp-low', 10], ['wp-high', 150]]) {
       const points = [[0, 0, 150], [0.0006, 0, 150], [0.0006, 0.0008, low], [0, 0.0008, 150]].map(([dlat, dlon, h]) => ({lat: +(lat0 + dlat).toFixed(9), lon: +(lon0 + dlon).toFixed(9), height: h}));
       const wp = await api(page, 'POST', 'routes', {name: 'Live check collisions ' + name, route_type: 'waypoint', model: 'm4t',
-        settings: {height: '150', height_mode: 'alt', takeoff_altitude: '200', takeoff: [lat0, lon0], points}});
+        settings: {height: '150', height_mode: 'alt', takeoff_altitude: ground.toFixed(2), takeoff: [lat0, lon0], points}});
       made.push(wp.data && wp.data.id);
       log(name, 'route', wp.status, wp.data && wp.data.id);
       await page.goto(base + '/plugins/' + SLUG + '/route/' + wp.data.id);
