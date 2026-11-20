@@ -8,10 +8,7 @@ to its title.
 
 **Up next**
 
-1. **Phase 21: a faster 3D view** (the user, 2026-11-20): measure the 3D view's first and later loads, then make the
-   changes the measurements back. Not yet planned with the user; the candidates and open decisions are in the
-   "Phase 21" section.
-2. **Phase 22: a sharper 3D ground** (the user, 2026-11-20): buildings and trees drawn closer to their real outlines
+1. **Phase 22: a sharper 3D ground** (the user, 2026-11-20): buildings and trees drawn closer to their real outlines
    and easier to read, without slowing the 3D view. Started as "1 m blocks like Minecraft"; after the user's
    screenshot (a building's lidar block larger than its roof in the imagery, grass draped on its top edges) the aim is
    definition by sensible, reliable means. Planned (the "Phase 22" section); its first step measures.
@@ -51,6 +48,10 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
 **Done**
+- **Phase 21: a faster 3D view** (2026-11-20, `phase-21-faster-3d`): `lidar_surface.js` (cut AWS tiles handed to MapLibre
+  as `ImageBitmap`s, each zoom-15 parent decoded once, `PARENTS`), `pointer_height.js` (reads such an image). Tests: 4 in
+  `lidar_surface.test.js`; `perf_3d_check.js` (live-check skill) measures the 3D view's loads. The user (2026-11-20):
+  the slow second switch into 3D (inside MapLibre) is accepted, and the ground is not loaded in 2D.
 - **Phase 20: a loading indicator for the 3D view's elevation** (2026-11-20, `phase-20-elevation-loading`): the status
   bar's `loading(on)` and the one-message rule (`lidar_surface.js` `createStatusBar`), `watchElevation` (MapLibre's
   `render`, `sourcedata` and `idle` with `isSourceLoaded("mp-dem")`), wired in `planner.js` and `waypoint_planner.js`.
@@ -912,7 +913,7 @@ message shows, then hides once the map is drawn (screenshots of both); the conso
 **Decided with the user (2026-11-20):** the message goes in the existing status bar, not a separate spinner by the
 map's buttons.
 
-## Phase 21: a faster 3D view (requested 2026-11-20, to plan)
+## Phase 21: a faster 3D view (requested 2026-11-20, built the same day)
 
 The request (`new.md`, 2026-11-20): "Assess the view rendering code for performance improvements. Right now the
 first load is the worst as expected and the loading ui informs the user it's in progress." It builds on Phase 6 (the
@@ -969,7 +970,10 @@ as it is: `util/image_request.ts`), and decodes each zoom-15 parent once for the
 **Tried and dropped:** keeping `mp-dem` across 2D/3D switches. MapLibre reloads a source's tiles whenever the terrain is
 turned on (`setTerrain`: `if (this.terrain === null) tileManager.reload()`), so it changed nothing.
 
-**Still open:** the second switch into 3D on the same page takes 2.4 to 2.7 s (lidar off or on), against 0.7 to 0.9 s
+**Decided (the user, 2026-11-20):** the slow second switch below is accepted, not looked into further; the ground is not
+loaded in 2D before it is shown.
+
+**Left as it is:** the second switch into 3D on the same page takes 2.4 to 2.7 s (lidar off or on), against 0.7 to 0.9 s
 after a reload. The main thread is idle, and MapLibre requests most of the tiles only about 1.6 s after the switch:
 the wait is inside MapLibre, not found yet. MapLibre also warns that one source for both the hillshade and the
 terrain lowers the quality of the drawing (Phase 22).
