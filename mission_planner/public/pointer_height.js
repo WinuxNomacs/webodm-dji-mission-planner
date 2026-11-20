@@ -142,7 +142,8 @@
 
     // opts: {load(z, x, y) -> Promise<{data: ArrayBuffer}>, isBuilt(unitX, unitY) -> bool, decode(buffer) -> Promise<rgba>}
     // Returns {heightAt(lng, lat) -> Promise<{height, source: "lidar" | "terrain"} | null>,
-    //          heightsAt(points [[lng, lat], ...]) -> Promise<[meters or null, ...]>}
+    //          heightsAt(points [[lng, lat], ...]) -> Promise<[meters or null, ...]>, bandMaxes(...),
+    //          clear() (the tiles read so far forgotten: the lidar's were made again)}
     function createHeightReader(opts) {
         var decode = opts.decode || decodeInBrowser;
         var cache = {}, order = [];
@@ -254,7 +255,9 @@
             return Promise.all(workers).then(function () { return out; });
         }
 
-        return {heightAt: heightAt, heightsAt: heightsAt, bandMaxes: bandMaxes};
+        function clear() { cache = {}; order = []; }
+
+        return {heightAt: heightAt, heightsAt: heightsAt, bandMaxes: bandMaxes, clear: clear};
     }
 
     // The tooltip's text: the surface's height, and the route's height above it when the pointer is on the route

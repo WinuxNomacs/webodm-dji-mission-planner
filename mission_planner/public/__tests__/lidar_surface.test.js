@@ -280,12 +280,27 @@ describe("lidar surface", () => {
         const {surface, fetch} = make(url => url.indexOf("lidar/surface") >= 0 ? {status: 200, body: {units: [{x: 100, y: 200, state: "done"}]}} : {status: 200});
         await surface.request([1, 2, 3, 4]);
         await surface.load({url: "mplidar://17/401/802?v=1"});
-        expect(fetch.calls.pop()).toMatchObject({url: API + "lidar/tiles/17/401/802.png", init: {credentials: "same-origin"}});
+        expect(fetch.calls.pop()).toMatchObject({url: API + "lidar/tiles/17/401/802.png?v=0", init: {credentials: "same-origin"}});
         await surface.load({url: "mplidar://14/50/100?v=1"});
         expect(fetch.calls.pop()).toMatchObject({url: AWS + "14/50/100.png", init: {credentials: "omit"}});
         const r = await surface.load({url: "mplidar://17/409/802?v=1"});        // unit 102_200: not built
         expect(fetch.calls.pop().url).toBe(AWS + "15/102/200.png");
         expect(r.data).toEqual({cropped: {x: 102, y: 200, left: 64, top: 128, size: 64}, from: AWS + "15/102/200.png"});
+    });
+
+    it("loads a unit's tiles at their version, and reloads the terrain when a unit's tiles are made again", async () => {
+        let v = 111;
+        const {surface, fetch} = make(url => url.indexOf("lidar/surface") >= 0 ? {status: 200, body: {units: [{x: 100, y: 200, state: "done", v: v}]}} : {status: 200});
+        await surface.request([1, 2, 3, 4]);
+        await surface.load({url: "mplidar://17/401/802?v=1"});
+        expect(fetch.calls.pop().url).toBe(API + "lidar/tiles/17/401/802.png?v=111");
+        await surface.refresh([1, 2, 3, 4]);
+        expect(tileChanges.length).toBe(1);                                   // the same version: nothing to reload
+        v = 222;
+        await surface.refresh([1, 2, 3, 4]);
+        expect(tileChanges).toEqual([["mplidar://{z}/{x}/{y}?v=1"], ["mplidar://{z}/{x}/{y}?v=2"]]);
+        await surface.load({url: "mplidar://17/401/802?v=2"});
+        expect(fetch.calls.pop().url).toBe(API + "lidar/tiles/17/401/802.png?v=222");
     });
 
     it("decodes each zoom-15 parent once for all the tiles cut from it", async () => {

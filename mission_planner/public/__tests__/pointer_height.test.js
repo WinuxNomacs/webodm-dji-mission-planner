@@ -69,6 +69,16 @@ describe("height reader", () => {
         expect(loads.length).toBe(1);
     });
 
+    it("reads a tile again once cleared (the lidar's tiles were made again)", async () => {
+        let height = 200;
+        const {reader, loads} = make(false, () => tile(height));
+        await reader.heightAt(LNG, LAT);
+        height = 205;
+        reader.clear();
+        expect(await reader.heightAt(LNG, LAT)).toEqual({height: 205, source: "terrain"});
+        expect(loads.length).toBe(2);
+    });
+
     it("answers nothing for a tile that does not load, and tries it again next time", async () => {
         let fail = true;
         const {reader, loads} = make(false, () => fail ? new Error("offline") : tile(200));

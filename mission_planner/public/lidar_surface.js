@@ -154,7 +154,7 @@
         var fetchFn = opts.fetch, now = opts.now || function () { return Date.now(); };
         var later = opts.setTimeout || setTimeout.bind(root), cancel = opts.clearTimeout || clearTimeout.bind(root);
         var crop = opts.crop || cropInBrowser, decodeParent = opts.decodeParent || decodeInBrowser;
-        var built = {}, version = 0, generation = 0, timer = null;
+        var built = {}, version = 0, generation = 0, timer = null;   // built: the units' tiles' versions, by "x_y"
         var parents = {}, parentOrder = [];     // zoom-15 AWS tiles, decoded once for every tile cut from them
 
         // The decoded zoom-15 AWS tile, shared by the tiles above it: fetched without a tile's signal, since another
@@ -193,8 +193,9 @@
             if (!m) return Promise.reject(new Error("Not a lidar tile: " + params.url));
             var z = +m[1], x = +m[2], y = +m[3], signal = abortController && abortController.signal;
             var unit = z >= UNIT_ZOOM ? unitOf(z, x, y) : null;
-            if (unit && built[unit[0] + "_" + unit[1]]) {
-                return bytes(opts.api + "lidar/tiles/" + z + "/" + x + "/" + y + ".png", signal, "same-origin")
+            if (unit && isBuilt(unit[0], unit[1])) {
+                // the version in the URL: the browser keeps a tile an hour, and a unit built again has new ones
+                return bytes(opts.api + "lidar/tiles/" + z + "/" + x + "/" + y + ".png?v=" + built[unit[0] + "_" + unit[1]], signal, "same-origin")
                     .catch(function (e) { if (signal && signal.aborted) throw e; return aws(z, x, y, signal); });
             }
             return aws(z, x, y, signal);
@@ -219,13 +220,15 @@
             if (opts.onStatus) opts.onStatus(null);
         }
 
-        // Takes the units' states: remembers the built ones (and reloads the tiles when there are new ones), says
+        // Takes the units' states: remembers the built ones and their tiles' versions (and reloads the tiles when there
+        // are new ones, or a unit's are made again), says
         // how far it is (unless quiet), and answers whether to poll again
         function take(units, quiet) {
             var fresh = false;
             units.forEach(function (u) {
                 var key = u.x + "_" + u.y;
-                if (u.state === "done" && !built[key]) { built[key] = true; fresh = true; }
+                var v = u.v || 0;
+                if (u.state === "done" && (!isBuilt(u.x, u.y) || built[key] !== v)) { built[key] = v; fresh = true; }
             });
             if (fresh) {
                 version++;
@@ -245,7 +248,7 @@
                 .catch(function () { /* the heights fall back on the terrain tiles */ });
         }
 
-        function isBuilt(x, y) { return !!built[x + "_" + y]; }
+        function isBuilt(x, y) { return Object.prototype.hasOwnProperty.call(built, x + "_" + y); }
 
         function request(bounds) {
             stop();
