@@ -16,6 +16,8 @@
 - Lighter on the server: block heights read a bounded number of points, the settings page no longer counts every
   lidar tile, and two terrain fetches at once leave no stray file.
 - Rectangle draws square to the screen on a turned map (in 2D and 3D), no longer always along north and east.
+- Area and linear routes are laid out in ground metres: the spacing between lines, the strip's width and the
+  route's length are now what is asked for, where UTM's scale left them up to 0.1% off (a few cm on 26 m lines).
 
 - Fixes from a code review:
   - Saving a route no longer drops its cached takeoff height ("Use cached values"), and a takeoff height still being

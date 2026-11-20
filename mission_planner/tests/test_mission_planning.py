@@ -16,10 +16,10 @@ from django.test import SimpleTestCase
 
 from ..missions.cameras import (CAMERAS, CAMERAS_BY_MODEL, M4T_THERMAL, M4T_WIDE, footprint, ground_sample_distance,
                                   oblique_footprint, oblique_ground_sample_distance)
-from pyproj import Geod
+from pyproj import Geod, Transformer
 
 from ..missions.wpml import AIRCRAFT
-from ..missions.planning import MAX_GIMBAL_PITCH, MIN_GIMBAL_PITCH, PlanError, check_gimbal_pitch, grid_convergence, plan_oblique_survey, plan_survey, utm_transformers
+from ..missions.planning import MAX_GIMBAL_PITCH, MIN_GIMBAL_PITCH, PlanError, check_gimbal_pitch, plan_oblique_survey, plan_survey
 
 KMZ_DIR = os.environ.get("DJI_KMZ_DIR", os.path.join(os.path.dirname(__file__), "fixtures", "dji-kmz"))
 NS = {"k": "http://www.opengis.net/kml/2.2", "w": "http://www.dji.com/wpmz/1.0.6"}
@@ -36,17 +36,19 @@ def rectangle(width_east=60.0, height_north=40.0, lon=LON0, lat=LAT0):
             (lon, lat + height_north * DLAT)]
 
 
-def to_metric(points):
-    t, _ = utm_transformers(*points[0])
-    return [t.transform(*p) for p in points]
-
-
-def distance(a, b):
-    (x0, y0), (x1, y1) = to_metric([a, b])
-    return math.hypot(x1 - x0, y1 - y0)
+def to_metric(points, origin=None):
+    """The points in metres, in an azimuthal equidistant frame centered on origin (true distances from it), by default
+    the first point"""
+    lon, lat = (origin or points[0])[:2]
+    t = Transformer.from_crs(4326, "+proj=aeqd +lat_0=%r +lon_0=%r +ellps=WGS84" % (lat, lon), always_xy=True)
+    return [t.transform(*p[:2]) for p in points]
 
 
 GEOD = Geod(ellps="WGS84")
+
+
+def distance(a, b):
+    return GEOD.inv(a[0], a[1], b[0], b[1])[2]
 
 
 def bearing(a, b):
@@ -59,6 +61,13 @@ def line_distance(line, point):
     (x0, y0), (x1, y1), (px, py) = to_metric([line[0], line[1], point])
     length = math.hypot(x1 - x0, y1 - y0)
     return abs((x1 - x0) * (py - y0) - (y1 - y0) * (px - x0)) / length
+
+
+def geodesic_line_distance(line, point):
+    """Distance in meters from a point to the geodesic through the two ends of `line`, on the ellipsoid"""
+    azimuth = GEOD.inv(*line[0], *line[1])[0]
+    to_point, _, d = GEOD.inv(*line[0], *point)
+    return abs(d * math.sin(math.radians(to_point - azimuth)))
 
 
 class TestCameras(SimpleTestCase):
@@ -234,13 +243,19 @@ class TestLines(SimpleTestCase):
                 self.assertTrue(abs(((bearing(*line) - direction + 90) % 180) - 90) < 0.05, (direction, bearing(*line)))
 
     def test_the_direction_is_a_true_bearing_not_a_grid_one(self):
-        # Here true north is 1.33 degrees away from the grid north of the map: lines must follow the meridians,
-        # or they drift a meter over 100 m
-        self.assertAlmostEqual(abs(grid_convergence(LON0, LAT0)), 1.33, delta=0.02)
+        # Here true north is 1.33 degrees away from UTM's grid north: lines must follow the meridians, or they drift a
+        # meter over 100 m
         plan = plan_survey(rectangle(60, 100), 0, 30.0, [M4T_THERMAL])
         for line in plan.lines:
             self.assertLess(abs(((bearing(*line) + 90) % 180) - 90), 0.01)
             self.assertAlmostEqual(line[0][0], line[1][0], delta=1e-9 * 1e5)        # same longitude: along a meridian
+
+    def test_the_lines_are_spaced_as_asked_on_the_ground_anywhere_in_a_utm_zone(self):
+        # UTM metres are 0.9996 ground metres on a zone's central meridian and 1.001 at its edge on the equator
+        for lon, lat in ((-81.0, 41.0), (-84.02, 0.5), (-79.53, 41.49)):
+            plan = plan_survey(rectangle(2000, 1500, lon, lat), 30.0, 60.0, [M4T_WIDE])
+            for a, b in zip(plan.lines, plan.lines[1:3]):
+                self.assertAlmostEqual(geodesic_line_distance(a, b[0]), plan.spacing, delta=0.001, msg=(lon, lat))
 
     def test_a_single_line_covers_a_narrow_area(self):
         plan = plan_survey(rectangle(2, 40), 0, 30.0, [M4T_THERMAL])
@@ -271,8 +286,8 @@ class TestLines(SimpleTestCase):
 class TestCoverage(SimpleTestCase):
     """Whatever the area, every point of it must be inside the photos of at least one line"""
 
-    def swaths(self, plan):
-        metric = [to_metric(l) for l in plan.lines]
+    def swaths(self, plan, origin):
+        metric = [to_metric(l, origin) for l in plan.lines]
         result = []
         half = plan.across / 2.0
         for (x0, y0), (x1, y1) in metric:
@@ -288,7 +303,7 @@ class TestCoverage(SimpleTestCase):
     def covered_fraction(self, area, plan):
         poly = Polygon([tuple(p) for p in to_metric(area)] + [to_metric(area)[0]])
         union = None
-        for s in self.swaths(plan):
+        for s in self.swaths(plan, area[0]):
             union = s if union is None else union.union(s)
         return poly.intersection(union).area / poly.area
 
@@ -302,7 +317,7 @@ class TestCoverage(SimpleTestCase):
 
     def test_neighboring_lines_overlap_as_requested(self):
         plan = plan_survey(rectangle(100, 60), 0, 50.0, [M4T_THERMAL], overlap_w=70)
-        swaths = self.swaths(plan)
+        swaths = self.swaths(plan, (LON0, LAT0))
         for a, b in zip(swaths, swaths[1:]):
             shared = a.intersection(b).area / a.area
             self.assertAlmostEqual(shared, 0.70, delta=0.01)

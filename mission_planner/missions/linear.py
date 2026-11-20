@@ -27,7 +27,7 @@ from xml.etree import ElementTree as ET
 
 from . import wpml
 from .cameras import footprint
-from .planning import MAX_HEIGHT, MAX_OVERLAP, MIN_HEIGHT, MIN_OVERLAP, MIN_SHOT_INTERVAL, PlanError, utm_transformers
+from .planning import MAX_HEIGHT, MAX_OVERLAP, MIN_HEIGHT, MIN_OVERLAP, MIN_SHOT_INTERVAL, PlanError, local_transformers
 from .wpml import (known, GEOD, HEIGHT_MODES, ExportError, Dsm, action_group, add, asl_heights,
                    check_cameras, check_choices, check_flight, check_realtime_follow, coordinate, is_number, k, kml_root, lens_index,
                    mission_config, simple_action, start_action_group, surface_follow_of, to_xml)
@@ -206,7 +206,9 @@ def leg_lengths(points):
 
 def plan(s):
     """The lines and the waypoints of the route"""
-    to_metric, to_lonlat = utm_transformers(*s.line[0])
+    # A frame centered on the middle of the center line's extent
+    lons, lats = [p[0] for p in s.line], [p[1] for p in s.line]
+    to_metric, to_lonlat = local_transformers((min(lons) + max(lons)) / 2.0, (min(lats) + max(lats)) / 2.0)
     center = [to_metric.transform(lon, lat) for lon, lat in s.line]
     center = [p for i, p in enumerate(center) if i == 0 or math.hypot(p[0] - center[i - 1][0], p[1] - center[i - 1][1]) > 1e-6]
     if len(center) < 2:
