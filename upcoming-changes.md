@@ -50,7 +50,7 @@ the geoid grid, readable download errors, double downloads, and the remembered m
 **Done**
 - **The lidar tiles' cache** (found 2026-11-20, `lidar-tile-version`): a tab open while a unit was built again, or its
   tiles made again for a neighbour, read the old tiles for up to an hour (`Cache-Control`, an unversioned URL). Now
-  `make_tiles` writes `tiles.json` (when, in nanoseconds) once all the unit's tiles are written, `lidar.states` answers
+  `make_tiles` writes `tiles.json` (when, in microseconds: exact in JavaScript) once all the unit's tiles are written, `lidar.states` answers
   it as each unit's `v` (0 for units made before), `lidar_surface.js` puts it in the tiles' URLs (`?v=`) and reloads
   the terrain when it changes, and both editors clear the pointer's height reader then (`clear()`). Tests:
   `test_lidar.py` (2), `lidar_surface.test.js`, `pointer_height.test.js`.

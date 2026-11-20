@@ -235,9 +235,10 @@ def states(units):
 
 
 def tiles_version(unit):
-    """When the unit's tiles were last made (nanoseconds; make_tiles writes it once they all are), 0 when unknown (made
-    before tiles had a version, or the file does not read): the tiles' URLs change with it, so that a browser that keeps
-    them an hour reads the new ones once a unit is built again or its tiles are made again for a neighbour"""
+    """When the unit's tiles were last made (microseconds, a whole number JavaScript keeps exactly; make_tiles writes it
+    once they all are), 0 when unknown (made before tiles had a version, or the file does not read): the tiles' URLs
+    change with it, so that a browser that keeps them an hour reads the new ones once a unit is built again or its
+    tiles are made again for a neighbour"""
     try:
         with open(os.path.join(unit_folder(unit), "tiles.json")) as f:
             made = json.load(f).get("made")
@@ -622,7 +623,7 @@ def make_tiles(unit):
                         reproject(aws, ground, src_transform=aws_transform, src_crs=crs, dst_transform=t, dst_crs=crs,
                                   resampling=Resampling.bilinear)
                         _write_tile(folder, z, tx, ty, _png(encode(ground * (1 - w) + lidar * w)))
-            _write_json(os.path.join(folder, "tiles.json"), {"made": time.time_ns()})
+            _write_json(os.path.join(folder, "tiles.json"), {"made": time.time_ns() // 1000})
             _record_size(unit)
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)

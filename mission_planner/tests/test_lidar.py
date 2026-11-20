@@ -297,6 +297,7 @@ class TestBuild(LidarTestCase):
         self.build()
         first = lidar.states([self.unit])[0]["v"]
         self.assertGreater(first, 0)
+        self.assertLessEqual(first, 2 ** 53 - 1)                        # exact in the browser's numbers
         self.assertEqual(lidar.states([self.unit])[0]["v"], first)
         self.build((self.unit[0] + 1, self.unit[1]))                    # its tiles made again at that edge
         self.assertGreater(lidar.states([self.unit])[0]["v"], first)
