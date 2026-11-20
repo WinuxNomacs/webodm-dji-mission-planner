@@ -1077,6 +1077,19 @@ misses (a chimney or pole narrower than a piece, between two readings).
 - *What is lost while it shows:* the basemap's roads and labels (or a faint basemap kept over it, the user's choice).
 - Tests: Jest for the panel and the scale; a live check with screenshots in both editors.
 
+**Step 1, measured (2026-11-20):** the lidar's outline (3 m above the lowest ground within about 30 m) over straight-down
+screenshots of the editor's basemap (the place georeferenced from the map's bounds; no other service asked), and unit
+8403_12226 built again with a tight radius in a scratch folder.
+- **The lidar is where the buildings stand; the imagery leans.** At the user's building (about 25 to 30 m tall) the
+  lidar's outline follows the foot of the walls; the imagery shows the roof shifted about 6 m north-west, with the
+  south wall in view: the photo was taken off-nadir. Low things (parked cars) line up within about a metre: no
+  constant shift. So most of the misalignment is the basemap's, grows with height, and no change to the surface
+  removes it; the photo's roof will always land partly beside a tall building's block.
+- **The widening, measured:** with each point counted in its own cell (`radius` half a cell's diagonal), 13.2% of the
+  unit's cells are more than 2 m lower than today, by up to 36 m (cells beside walls carry the roof's height today),
+  1.0 m lower on average; no cell is left empty. The building's outlined area drops 5% (about 1 m round its edge).
+- The Illinois sample's place is unbroken forest: no buildings to line up, and no ground between the crowns; not used.
+
 **Decided with the user (2026-11-20):**
 - **A 2 m collision margin, up and sideways, in a field of each route's form** (both editors), saved with the route;
   routes saved without it get 2 m. Shown in feet in imperial. It changes the editors' check only, not the KMZ.

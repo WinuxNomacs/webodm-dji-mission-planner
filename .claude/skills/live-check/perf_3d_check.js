@@ -1,6 +1,7 @@
 // How long the 3D view takes to load and draw (Phase 21), headless, against a dev stack:
 //   MP_ADMIN_USER=... MP_ADMIN_PASSWORD=... node .claude/skills/live-check/perf_3d_check.js <port> [runs] [lidar: off|on|both]
-// Imports the Illinois sample (its lidar units must be built already: "on" over unbuilt units would start builds) and
+// Imports the Illinois sample (with the lidar on, its units are built first, outside the timings; on a stack without them
+// that is a build, whose units stay: remove them afterwards, live-check skill) and
 // times, in the area editor: a cold first switch into 3D (a fresh browser, empty cache), the second switch (3D, 2D,
 // 3D again), a reload with the browser's cache warm, and a pan in 3D. Each is timed from the click to the map's last
 // "idle" (everything loaded and drawn, nothing more for 1.5 s), with the requests (count and bytes by host) and the
@@ -196,6 +197,20 @@ const median = a => { const s = a.filter(x => x !== null).sort((x, y) => x - y);
     }, [fs.readFileSync(KMZ).toString('base64'), SLUG]);
     id = up.data && (up.data.id || (up.data.route && up.data.route.id));
     log('import', up.status, 'id', id);
+    if (which !== 'off') {
+      // The sample's lidar units built first, outside the timings (a stack without them builds them now: about 30 s, and
+      // they stay: remove them afterwards as the skill says)
+      await admin.evaluate(() => localStorage.setItem('mission-planner:lidar', 'on'));
+      await admin.goto(base + '/plugins/' + SLUG + '/route/' + id);
+      await admin.waitForSelector('.mp-layers-button');
+      const start = Date.now();
+      let text = '';
+      do {
+        await admin.waitForTimeout(2000);
+        text = await admin.evaluate(() => { const b = document.querySelector('.mp-lidar-status'); return b && !b.hidden ? b.textContent : ''; });
+      } while (/Building/.test(text) && Date.now() - start < 10 * 60 * 1000);
+      log('lidar units ready after ' + Math.round((Date.now() - start) / 1000) + ' s' + (text ? ' (' + text + ')' : ''));
+    }
     for (const lidar of which === 'both' ? ['off', 'on'] : [which]) {
       const all = [];
       for (let i = 0; i < RUNS; i++) all.push(await oneRun(browser, id, lidar));

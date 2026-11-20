@@ -103,7 +103,7 @@ and read the page's console messages. A KMZ is uploaded with `setInputFiles` on 
   first lines): with the lidar surface off and AWS's elevation tiles slowed, in both editors: shown on switching to 3D
   and on a zoom, hidden once drawn and on leaving 3D; screenshots. Deletes its routes.
 - How long the 3D view takes (Phase 21): `perf_3d_check.js` (beside this file; how to run it and its options in its
-  first lines): imports the Illinois sample (its lidar units must be built already) and times, in the area editor, the
+  first lines): imports the Illinois sample (with the lidar on, builds its units first, outside the timings; new units stay: remove them as for `lidar_check.js`) and times, in the area editor, the
   first switch into 3D in a fresh browser, the second, a pan and a reload, lidar off and on: medians of the time to
   the map's last idle, requests by host, long tasks, frames; `MP_PROFILE=1` the main thread's top functions,
   `MP_TRACE=1` each request and elevation tile. Headless Chromium draws WebGL on SwiftShader; the script draws 2D
