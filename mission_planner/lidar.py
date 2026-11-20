@@ -422,7 +422,8 @@ def dsm_pipeline(url, unit, out):
 
 
 def build_units(units):
-    for unit in units:
+    for i, unit in enumerate(units):
+        _refresh_queued(units[i:])
         try:
             build_unit(unit)
         except Exception as e:  # every failure ends in the unit's state, the next unit is built
@@ -435,6 +436,18 @@ def build_units(units):
         evict(keep=units)
     except Exception:  # the folder stays over its cap until the next build: not these units' failure
         logger.exception("DJI Mission Planner lidar: could not keep the lidar folder under its cap")
+
+
+def _refresh_queued(units):
+    """The units still waiting in this batch marked queued now, so that a long batch does not leave them stale (taken
+    over by another request, or removed by the cap, while they wait)"""
+    for unit in units:
+        try:
+            st = read_state(unit)
+            if st is not None and st["state"] == "queued":
+                write_state(unit, "queued", st.get("message", ""))
+        except OSError:
+            logger.exception("DJI Mission Planner lidar: could not refresh the state of unit %s", unit)
 
 
 def build_unit(unit):
