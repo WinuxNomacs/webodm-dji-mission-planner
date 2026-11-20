@@ -99,6 +99,9 @@ and read the page's console messages. A KMZ is uploaded with `setInputFiles` on 
   3D, makes an ALT waypoint route with one point below the ground (red label) and screenshots its labels in 2D and
   3D; `lidar` as a third argument turns the lidar surface on (and clears it at the end). Afterwards remove the grid
   (and with `lidar`, the lidar index) as above.
+- The 3D view's "Loading elevation…" (Phase 20): `elevation_loading_check.js` (beside this file; how to run it in its
+  first lines): with the lidar surface off and AWS's elevation tiles slowed, in both editors: shown on switching to 3D
+  and on a zoom, hidden once drawn and on leaving 3D; screenshots. Deletes its routes.
 - The browser console has no new errors, nor `dev/webodm.sh logs webapp`.
 
 ## Before

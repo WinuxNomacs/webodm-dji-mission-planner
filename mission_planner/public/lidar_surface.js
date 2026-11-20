@@ -10,6 +10,7 @@
     var PROTOCOL = "mplidar";
     var UNIT_ZOOM = 15, MAX_ZOOM = 18, TILE = 256;
     var POLL_MS = 2000, POLL_DEADLINE_MS = 10 * 60 * 1000, NOTE_MS = 6000;
+    var LOADING_DELAY_MS = 400, LOADING_TEXT = "Loading elevation…";
     var ATTRIBUTION = 'Terrain: <a href="https://www.usgs.gov/3d-elevation-program">USGS 3DEP lidar</a> and ' +
                       '<a href="https://registry.opendata.aws/terrain-tiles/">Terrain Tiles</a>';
 
@@ -65,7 +66,10 @@
         return null;
     }
 
-    // The small bar on the map that says the surface is loading (with a spinner) or why it is not there
+    // The small bar on the map that says the surface is being built or its elevation loaded (with a spinner), or why
+    // it is not there. One message at a time: show(status) sets the lidar's (a build in progress first), loading(on)
+    // says whether the map's elevation tiles are loading (said once it has lasted LOADING_DELAY_MS, so that a quick
+    // pan from the cache does not flash it); a note (a status not busy) shows for NOTE_MS once nothing else is said.
     function createStatusBar(doc, container, timers) {
         timers = timers || {setTimeout: setTimeout.bind(root), clearTimeout: clearTimeout.bind(root)};
         var bar = doc.createElement("div");
@@ -78,16 +82,51 @@
         bar.appendChild(spinner);
         bar.appendChild(text);
         container.appendChild(bar);
-        var hideTimer = null;
-        function show(status) {
-            if (hideTimer) { timers.clearTimeout(hideTimer); hideTimer = null; }
-            bar.hidden = !status;
-            if (!status) return;
-            spinner.hidden = !status.busy;
-            text.textContent = status.text;
-            if (!status.busy) hideTimer = timers.setTimeout(function () { bar.hidden = true; hideTimer = null; }, NOTE_MS);
+        var status = null, isLoading = false, loadingShown = false, loadingTimer = null, noteTimer = null;
+        function render() {
+            var current = status && status.busy ? status : loadingShown ? {busy: true, text: LOADING_TEXT} : status;
+            if (noteTimer && current !== status) { timers.clearTimeout(noteTimer); noteTimer = null; }   // shown in full later
+            bar.hidden = !current;
+            if (!current) return;
+            spinner.hidden = !current.busy;
+            text.textContent = current.text;
+            if (!current.busy && !noteTimer) noteTimer = timers.setTimeout(function () { noteTimer = null; status = null; render(); }, NOTE_MS);
         }
-        return {element: bar, show: show};
+        function show(s) {
+            if (noteTimer) { timers.clearTimeout(noteTimer); noteTimer = null; }
+            status = s;
+            render();
+        }
+        function loading(on) {
+            on = !!on;
+            if (on === isLoading) return;
+            isLoading = on;
+            if (on) {
+                loadingTimer = timers.setTimeout(function () { loadingTimer = null; loadingShown = true; render(); }, LOADING_DELAY_MS);
+                return;
+            }
+            if (loadingTimer) { timers.clearTimeout(loadingTimer); loadingTimer = null; }
+            if (loadingShown) { loadingShown = false; render(); }
+        }
+        return {element: bar, show: show, loading: loading};
+    }
+
+    // Tells the bar whether the map's elevation (source sourceId) has tiles loading, while active() (the 3D view):
+    // checked as each frame is drawn and each tile arrives (a raster source says nothing when a tile starts loading),
+    // and over once the map is idle (everything loaded and drawn; a tile that failed counts as done). check() for a
+    // change the map does not draw (leaving 3D).
+    function watchElevation(map, bar, sourceId, active) {
+        function check() {
+            var on = false;
+            if (active() && map.getSource(sourceId)) {
+                try { on = !map.isSourceLoaded(sourceId); } catch (e) { on = false; }
+            }
+            bar.loading(on);
+        }
+        map.on("render", check);
+        map.on("sourcedata", function (e) { if (!e || e.sourceId === sourceId) check(); });
+        map.on("idle", function () { bar.loading(false); });
+        return {check: check};
     }
 
     // Draws `size` x `size` pixels of a tile image, from (left, top), enlarged to 256 x 256 without blending, and
@@ -232,8 +271,9 @@
         return {source: source, request: request, ensure: ensure, refresh: refresh, stop: stop, load: load, isBuilt: isBuilt};
     }
 
-    var api = {createLidarSurface: createLidarSurface, createStatusBar: createStatusBar, boundsOf: boundsOf, statusOf: statusOf,
-               parentCrop: parentCrop, unitOf: unitOf, unitsKey: unitsKey, POLL_MS: POLL_MS, POLL_DEADLINE_MS: POLL_DEADLINE_MS, NOTE_MS: NOTE_MS};
+    var api = {createLidarSurface: createLidarSurface, createStatusBar: createStatusBar, watchElevation: watchElevation,
+               boundsOf: boundsOf, statusOf: statusOf, parentCrop: parentCrop, unitOf: unitOf, unitsKey: unitsKey,
+               POLL_MS: POLL_MS, POLL_DEADLINE_MS: POLL_DEADLINE_MS, NOTE_MS: NOTE_MS, LOADING_DELAY_MS: LOADING_DELAY_MS};
     root.MissionPlannerLidar = api;
     if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : {});

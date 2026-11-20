@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The 3D view says "Loading elevation…" while the ground is still loading and being drawn (after switching to 3D,
+  turning the lidar surface on or off, panning or zooming).
+
 ## 2.0.0 (2026-11-20)
 
 The first published release. Needs WebODM 4.0.0 or later.
