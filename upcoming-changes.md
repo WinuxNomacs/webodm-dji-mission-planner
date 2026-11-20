@@ -8,9 +8,7 @@ to its title.
 
 **Up next**
 
-1. **Phase 20: a loading indicator for the 3D view's elevation** (planned 2026-11-20). Details in its section.
-
-Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views
+Nothing planned. Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views
 of the replaced commits, then make it public.
 
 Listing in WebODM-Plugins (the user, 2026-11-20, after talking with WebODM's maintainer, who suggested it): from now
@@ -45,6 +43,10 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
 
 **Done**
+- **Phase 20: a loading indicator for the 3D view's elevation** (2026-11-20, `phase-20-elevation-loading`): the status
+  bar's `loading(on)` and the one-message rule (`lidar_surface.js` `createStatusBar`), `watchElevation` (MapLibre's
+  `render`, `sourcedata` and `idle` with `isSourceLoaded("mp-dem")`), wired in `planner.js` and `waypoint_planner.js`.
+  Tests: 10 in `lidar_surface.test.js`; live `elevation_loading_check.js` (both editors).
 - **Phase 19: true distances in area and linear routes** (2026-11-20, `phase-19-local-frame`): `planning.local_transformers`
   (an azimuthal equidistant frame on the route's middle) replaces the UTM zone in `planning._survey_plan` and
   `linear.plan`; `grid_convergence` and `utm_epsg` removed. Tests: the spacing on the ellipsoid within 1 mm on a zone's
@@ -863,7 +865,7 @@ fetch keeps the new point's height, no fetch on opening a waypoint route in ASL,
 the hint with no dialog, Fetch from elevation data clearing the hints; routes deleted.
 
 
-## Phase 20: a loading indicator for the 3D view's elevation (planned 2026-11-20)
+## Phase 20: a loading indicator for the 3D view's elevation (planned and built 2026-11-20)
 
 The request (the user, 2026-11-20): make it obvious when the viewer is still loading and drawing the elevation for
 the area.
@@ -878,9 +880,11 @@ zooming in 3D loads more.
 
 **The design.**
 - In 3D only (2D has no raised ground), in both editors: while `mp-dem` has tiles loading or the map has not drawn
-  them, the status bar shows a spinner and "Loading elevation…". MapLibre 6.16.0 says when (in its typings, read
-  2026-11-20): `sourcedataloading` for `mp-dem` starts it, `idle` (everything loaded and drawn) ends it, checked with
-  `isSourceLoaded("mp-dem")`. It comes back when panning or zooming loads more, when the lidar surface is switched on
+  them, the status bar shows a spinner and "Loading elevation…". MapLibre 6.16.0 says when: `isSourceLoaded("mp-dem")`
+  checked as each frame is drawn (`render`) and each tile arrives (`sourcedata`), and `idle` (everything loaded and
+  drawn) ends it. Built 2026-11-20: a raster source fires `sourcedataloading` only when its metadata loads, not per
+  tile (MapLibre's `raster_tile_source.ts`), so it could not start it; the terrain reads the style's own tile manager
+  for the source (`render/terrain.ts`), so `isSourceLoaded` covers the 3D ground. It comes back when panning or zooming loads more, when the lidar surface is switched on
   or off, and when new lidar units replace the tiles.
 - It shows only after the loading has lasted 400 ms, so a quick pan from the browser's cache does not flash it.
 - One bar, one message: a lidar build in progress keeps its own message (it is the longer wait, and says how far it

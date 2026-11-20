@@ -694,6 +694,9 @@
         }
     });
 
+    // "Loading elevation…" on the status bar while the 3D view's ground loads and is drawn
+    var elevationWatch = window.MissionPlannerLidar.watchElevation(map, lidarBar, "mp-dem", function () { return state.view3d; });
+
     // What the lidar surface is built around: the route (null when it has no place yet), else the middle of the map
     function routeBounds() {
         var points = state.points.map(function (p) { return [p.lon, p.lat]; });
@@ -785,6 +788,7 @@
             map.setTerrain(null);
             if (map.getLayer("mp-hillshade")) map.removeLayer("mp-hillshade");
             map.easeTo({pitch: 0, bearing: 0});
+            elevationWatch.check();
         }
     }
 

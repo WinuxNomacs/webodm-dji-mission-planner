@@ -91,6 +91,133 @@ describe("status bar", () => {
         bar.show(null);
         expect(bar.element.hidden).toBe(true);
     });
+
+    const live = () => pending.filter(Boolean);
+
+    it("says the elevation is loading once the loading has lasted a moment", () => {
+        const bar = L.createStatusBar(document, host, timers);
+        bar.loading(true);
+        expect(bar.element.hidden).toBe(true);
+        expect(live()[0].ms).toBe(L.LOADING_DELAY_MS);
+        live()[0].f();
+        expect(bar.element.hidden).toBe(false);
+        expect(bar.element.textContent).toBe("Loading elevation…");
+        expect(bar.element.querySelector(".fa-spin").hidden).toBe(false);
+    });
+
+    it("says nothing when the loading ends before the moment is over", () => {
+        const bar = L.createStatusBar(document, host, timers);
+        bar.loading(true);
+        bar.loading(false);
+        expect(live()).toEqual([]);
+        expect(bar.element.hidden).toBe(true);
+    });
+
+    it("hides the loading message once the elevation is drawn", () => {
+        const bar = L.createStatusBar(document, host, timers);
+        bar.loading(true);
+        live()[0].f();
+        bar.loading(false);
+        expect(bar.element.hidden).toBe(true);
+    });
+
+    it("does not start the moment again while the loading goes on", () => {
+        const bar = L.createStatusBar(document, host, timers);
+        bar.loading(true);
+        bar.loading(true);
+        expect(live().length).toBe(1);
+    });
+
+    it("keeps a lidar build's message while the elevation loads", () => {
+        const bar = L.createStatusBar(document, host, timers);
+        bar.show({busy: true, text: "Building the lidar surface (1 of 2)"});
+        bar.loading(true);
+        live()[0].f();
+        expect(bar.element.textContent).toContain("1 of 2");
+        bar.show(null);
+        expect(bar.element.textContent).toBe("Loading elevation…");
+    });
+
+    it("shows a note once the loading is over, for its usual time", () => {
+        const bar = L.createStatusBar(document, host, timers);
+        bar.loading(true);
+        live()[0].f();
+        bar.show({busy: false, text: "No lidar here"});
+        expect(bar.element.textContent).toBe("Loading elevation…");
+        const notes = () => live().filter(t => t.ms === L.NOTE_MS);
+        expect(notes()).toEqual([]);
+        bar.loading(false);
+        expect(bar.element.textContent).toBe("No lidar here");
+        expect(notes().length).toBe(1);
+        notes()[0].f();
+        expect(bar.element.hidden).toBe(true);
+    });
+
+    it("lets a note that was cut short by loading show its whole time afterwards", () => {
+        const bar = L.createStatusBar(document, host, timers);
+        bar.show({busy: false, text: "No lidar here"});
+        bar.loading(true);
+        live().filter(t => t.ms === L.LOADING_DELAY_MS)[0].f();
+        expect(live().filter(t => t.ms === L.NOTE_MS)).toEqual([]);
+        bar.loading(false);
+        expect(bar.element.textContent).toBe("No lidar here");
+        expect(live().filter(t => t.ms === L.NOTE_MS).length).toBe(1);
+    });
+});
+
+describe("watching the map's elevation", () => {
+    // A map with only what watchElevation uses: on(), getSource(), isSourceLoaded()
+    function fakeMap() {
+        const handlers = {};
+        const map = {
+            source: true, loaded: true,
+            on: (type, f) => { (handlers[type] = handlers[type] || []).push(f); },
+            getSource: id => (map.source && id === "mp-dem" ? {} : undefined),
+            isSourceLoaded: id => { if (!map.getSource(id)) throw new Error("no source " + id); return map.loaded; },
+            fire: (type, e) => (handlers[type] || []).forEach(f => f(e || {}))
+        };
+        return map;
+    }
+    function fakeBar() {
+        const bar = {states: [], loading: on => bar.states.push(on)};
+        return bar;
+    }
+
+    it("says loading while the elevation source has tiles loading, in 3D", () => {
+        const map = fakeMap(), bar = fakeBar();
+        L.watchElevation(map, bar, "mp-dem", () => true);
+        map.loaded = false;
+        map.fire("render");
+        expect(bar.states.slice(-1)).toEqual([true]);
+        map.loaded = true;
+        map.fire("sourcedata", {sourceId: "mp-dem"});
+        expect(bar.states.slice(-1)).toEqual([false]);
+    });
+
+    it("stops saying it when the map is idle", () => {
+        const map = fakeMap(), bar = fakeBar();
+        L.watchElevation(map, bar, "mp-dem", () => true);
+        map.loaded = false;
+        map.fire("render");
+        map.fire("idle");
+        expect(bar.states.slice(-1)).toEqual([false]);
+    });
+
+    it("says nothing in 2D, nor without the source", () => {
+        const map = fakeMap(), bar = fakeBar();
+        let view3d = false;
+        const watch = L.watchElevation(map, bar, "mp-dem", () => view3d);
+        map.loaded = false;
+        map.fire("render");
+        expect(bar.states.slice(-1)).toEqual([false]);
+        view3d = true;
+        map.source = false;
+        map.fire("render");
+        expect(bar.states.slice(-1)).toEqual([false]);
+        map.source = true;
+        watch.check();
+        expect(bar.states.slice(-1)).toEqual([true]);
+    });
 });
 
 describe("lidar surface", () => {

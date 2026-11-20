@@ -113,7 +113,8 @@ fork of WebODM where it was written, and runs on an unmodified WebODM 4.0.0 or l
   (about 15 s and 100 MB of download a km², shown on the map while it builds), then kept for every route nearby
   (about 12 MB a km²; DJI Mission Planner page > Settings shows the size and clears it). It is kept under 5 GB: past that,
   the places opened longest ago are removed, and built again if a route there is opened. Elsewhere, or with it off, the
-  shape of the ground from AWS Terrain Tiles. The mission's own terrain is unchanged.
+  shape of the ground from AWS Terrain Tiles. The mission's own terrain is unchanged. While the ground is still
+  loading or being drawn, the map says "Loading elevation…" at its bottom.
 - **Drawing and editing in 3D:** the editors' tools work in the 3D view as in 2D. A click lands on the surface under
   the pointer (a corner clicked on a roof is at the roof's position); the area stays laid on the surface. A waypoint's
   numbered marker, up at its point in the air, is dragged there: the point follows the pointer at its height (AGL
