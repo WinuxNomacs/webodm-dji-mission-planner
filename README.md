@@ -1,6 +1,20 @@
 # DJI Mission Planner plugin for WebODM
 
+**Draw your flight in 2D or 3D, fly it on your DJI drone: free mission planning, right inside WebODM.**
+
 ![An area route over a building in the editor's 3D view, on the lidar surface](docs/images/editor-3d.jpg)
+
+- **Map in 2D and 3D:** draw and edit routes on the map or in a 3D view that shows the trees and buildings from
+  public USGS lidar (most of the US), with each waypoint's height above what is under it.
+- **Accurate ground heights:** AGL routes follow a 10 m terrain from the lidar's highest points (COP30 elsewhere),
+  converted to the heights DJI expects (WGS84, with GEOID18 and EGM96), and the route turns red wherever it would
+  touch the ground, a tree or a roof.
+- **Five kinds of route:** area surveys (ortho or oblique), linear corridors, waypoint and POI orbits, slopes and
+  facades, and whole buildings, with the photo spacing worked out from your overlaps or ground sample distance.
+- **Many DJI drones:** Matrice 4T/4E, Mavic 3 Enterprise, Matrice 30, 3D and 4D, M300/M350 with Zenmuse payloads,
+  for DJI Pilot 2 and FlightHub 2; Mini, Air and Mavic consumer drones for DJI Fly.
+- **Free and open:** no subscription and no paid map data; import and export Pilot 2 KMZ files and plain KML, and
+  keep your routes on your own WebODM.
 
 Plan survey flights for DJI drones in WebODM and download the mission file for DJI Pilot 2, or for DJI Fly on DJI's
 consumer drones. Made for the Matrice 4T (thermal and visible light) and the Matrice 4E, whose files were checked
