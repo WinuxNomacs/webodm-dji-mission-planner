@@ -122,6 +122,16 @@ fork of WebODM where it was written, and runs on an unmodified WebODM 4.0.0 or l
   round the route to red on its highest roofs, under a stronger shading, with the photo faint over it: the shapes of
   trees and buildings read whatever the photo shows (a satellite photo is taken at an angle, so a tall building's roof
   sits a few meters off its footprint, which the lidar draws where it stands). Off by default, remembered by the browser.
+- **Your WebODM task in the map:** the layers panel's "WebODM task" lists your processed tasks whose area overlaps the
+  route (those of the projects you can view, with a DSM or an orthophoto). Pick one (or None) and tick **DSM (3D
+  ground)**, **Orthophoto**, or both. The DSM is the 3D view's ground inside the task, as new as your flight, blended
+  into the lidar or terrain at its edge; the pointer's heights, the collision check and Relief read it too. Its heights
+  are shifted to meet the ground around it (the lidar where built, else AWS's terrain, on open ground), since a task's
+  GPS heights are often a metre or more off: the panel says by how much. WebODM's worker cuts the DSM into tiles the
+  first time (under a second for a small task) and again when the task is processed again. The orthophoto (WebODM's own
+  tiles) shows over the basemap in 2D and 3D, straight down, so it lines up with the ground where a satellite photo
+  leans tall buildings. The choice is remembered per route by the browser. The mission itself is unchanged. The DSM is
+  shown at up to about 0.5 m a pixel (zoom 18), as the lidar is.
 - **Drawing and editing in 3D:** the editors' tools work in the 3D view as in 2D. A click lands on the surface under
   the pointer (a corner clicked on a roof is at the roof's position); the area stays laid on the surface. A waypoint's
   numbered marker, up at its point in the air, is dragged there: the point follows the pointer at its height (AGL

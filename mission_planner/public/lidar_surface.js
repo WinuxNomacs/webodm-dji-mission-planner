@@ -1,3 +1,4 @@
+/* global Uint8ClampedArray */
 // The lidar surface of the 3D view, in the browser (the server side is lidar.py). Where USGS lidar covers a route, the
 // editors' 3D view raises the ground to a 1 m surface with trees and buildings; elsewhere it is AWS's Terrarium tiles,
 // as before. The terrain source loads its tiles through an "mplidar://" protocol (maplibregl.addProtocol): a lidar
@@ -147,14 +148,68 @@
         return root.createImageBitmap(canvas);
     }
 
+    // The bounds of a web-mercator tile, [west, south, east, north] in degrees
+    function tileLonLat(z, x, y) {
+        var n = Math.pow(2, z);
+        function lat(row) { return Math.atan(Math.sinh(Math.PI * (1 - 2 * row / n))) * 180 / Math.PI; }
+        return [x / n * 360 - 180, lat(y + 1), (x + 1) / n * 360 - 180, lat(y)];
+    }
+
+    function touches(b, z, x, y) {
+        var t = tileLonLat(z, x, y);
+        return t[0] <= b[2] && b[0] <= t[2] && t[1] <= b[3] && b[1] <= t[3];
+    }
+
+    // `size` x `size` pixels of a 256 x 256 RGBA tile, from (left, top), enlarged to 256 x 256 pixel for pixel
+    function cropRgba(rgba, c) {
+        var out = new Uint8ClampedArray(TILE * TILE * 4);
+        for (var j = 0; j < TILE; j++) {
+            var row = (c.top + Math.floor(j * c.size / TILE)) * TILE;
+            for (var i = 0; i < TILE; i++) {
+                var from = (row + c.left + Math.floor(i * c.size / TILE)) * 4, to = (j * TILE + i) * 4;
+                out[to] = rgba[from]; out[to + 1] = rgba[from + 1]; out[to + 2] = rgba[from + 2]; out[to + 3] = 255;
+            }
+        }
+        return out;
+    }
+
+    // A task's tile (Terrarium, its weight in the alpha) over the surface under it: the heights mixed by that weight
+    function blend(under, task) {
+        var out = new Uint8ClampedArray(TILE * TILE * 4);
+        for (var i = 0; i < out.length; i += 4) {
+            var a = task[i + 3] / 255;
+            if (a <= 0) {
+                out[i] = under[i]; out[i + 1] = under[i + 1]; out[i + 2] = under[i + 2];
+            } else {
+                var hu = under[i] * 256 + under[i + 1] + under[i + 2] / 256;
+                var ht = task[i] * 256 + task[i + 1] + task[i + 2] / 256;
+                var v = Math.min(Math.max(hu * (1 - a) + ht * a, 0), 65535.996);
+                out[i] = Math.floor(v / 256); out[i + 1] = Math.floor(v) % 256; out[i + 2] = Math.floor((v - Math.floor(v)) * 256);
+            }
+            out[i + 3] = 255;
+        }
+        return out;
+    }
+
+    function imageInBrowser(rgba) {
+        return root.createImageBitmap(new root.ImageData(rgba, TILE, TILE));
+    }
+
     // opts: {maplibregl, fetch, api, csrf, onStatus(status|null), onTilesChanged(tiles), crop(blob, crop), now(),
-    //        setTimeout, clearTimeout}
-    // Returns {source(), request(bounds), refresh(bounds), stop(), load(params, abortController), isBuilt(unitX, unitY)}
+    //        setTimeout, clearTimeout, decodeRgba(buffer) -> Promise<rgba> (pointer_height.js's, no canvas: Brave),
+    //        toImage(rgba) -> Promise<image>, lidar: false (the lidar's tiles not used, until setLidar(true))}
+    // Returns {source(), request(bounds), refresh(bounds), stop(), load(params, abortController), isBuilt(unitX, unitY),
+    //          setTask({id, v, bounds} | null) (a WebODM task's surface over the rest, Phase 23), hasTask(unitX, unitY),
+    //          setLidar(on) (the lidar's tiles used or not)}
     function createLidarSurface(opts) {
         var fetchFn = opts.fetch, now = opts.now || function () { return Date.now(); };
         var later = opts.setTimeout || setTimeout.bind(root), cancel = opts.clearTimeout || clearTimeout.bind(root);
         var crop = opts.crop || cropInBrowser, decodeParent = opts.decodeParent || decodeInBrowser;
         var built = {}, version = 0, generation = 0, timer = null;   // built: the units' tiles' versions, by "x_y"
+        var task = null, lidarOn = opts.lidar !== false;
+        var decodeRgba = opts.decodeRgba || function (b) { return root.MissionPlannerPointerHeight.decodeInBrowser(b); };
+        var toImage = opts.toImage || imageInBrowser;
+        var rgbaParents = {}, rgbaOrder = [];   // zoom-15 AWS tiles as RGBA, for the tiles blended with a task's
         var parents = {}, parentOrder = [];     // zoom-15 AWS tiles, decoded once for every tile cut from them
 
         // The decoded zoom-15 AWS tile, shared by the tiles above it: fetched without a tile's signal, since another
@@ -188,14 +243,58 @@
             }).then(function (data) { return {data: data}; });
         }
 
+        // The zoom-15 AWS tile as RGBA (decoded without a canvas), shared by the blended tiles above it
+        function parentRgba(x, y) {
+            var key = x + "/" + y;
+            if (!rgbaParents[key]) {
+                var p = rgbaParents[key] = fetchFn(AWS.replace("{z}", UNIT_ZOOM).replace("{x}", x).replace("{y}", y), {credentials: "omit"})
+                    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+                    .then(decodeRgba);
+                p.catch(function () { if (rgbaParents[key] === p) { delete rgbaParents[key]; rgbaOrder.splice(rgbaOrder.indexOf(key), 1); } });
+                rgbaOrder.push(key);
+                if (rgbaOrder.length > PARENTS) delete rgbaParents[rgbaOrder.shift()];
+            }
+            return rgbaParents[key];
+        }
+
+        // The surface under a task's tile as RGBA: the lidar's tile where its unit is built, else AWS's
+        function underRgba(z, x, y, signal) {
+            function aws() {
+                if (z <= UNIT_ZOOM) return bytes(AWS.replace("{z}", z).replace("{x}", x).replace("{y}", y), signal).then(function (r) { return decodeRgba(r.data); });
+                var c = parentCrop(z, x, y);
+                return parentRgba(c.x, c.y).then(function (rgba) { return cropRgba(rgba, c); });
+            }
+            var unit = unitOf(z, x, y);
+            if (!isBuilt(unit[0], unit[1])) return aws();
+            return bytes(lidarUrl(z, x, y, unit), signal, "same-origin").then(function (r) { return decodeRgba(r.data); })
+                .catch(function (e) { if (signal && signal.aborted) throw e; return aws(); });
+        }
+
+        // A tile where the chosen task is: its tile blended over the surface under it ({data: image, rgba}); the
+        // surface alone where the task has no tile there
+        function blended(z, x, y, signal) {
+            var t = task;
+            var mine = bytes(opts.api + "task-surface/" + t.id + "/tiles/" + z + "/" + x + "/" + y + ".png?v=" + t.v, signal, "same-origin")
+                .then(function (r) { return decodeRgba(r.data); }, function (e) { if (signal && signal.aborted) throw e; return null; });
+            return Promise.all([underRgba(z, x, y, signal), mine]).then(function (both) {
+                var rgba = both[1] ? blend(both[0], both[1]) : both[0];
+                return toImage(rgba).then(function (image) { return {data: image, rgba: rgba}; });
+            });
+        }
+
+        function lidarUrl(z, x, y, unit) {
+            // the version in the URL: the browser keeps a tile an hour, and a unit built again has new ones
+            return opts.api + "lidar/tiles/" + z + "/" + x + "/" + y + ".png?v=" + built[unit[0] + "_" + unit[1]];
+        }
+
         function load(params, abortController) {
             var m = /^mplidar:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url || "");
             if (!m) return Promise.reject(new Error("Not a lidar tile: " + params.url));
             var z = +m[1], x = +m[2], y = +m[3], signal = abortController && abortController.signal;
+            if (task && z >= UNIT_ZOOM && touches(task.bounds, z, x, y)) return blended(z, x, y, signal);
             var unit = z >= UNIT_ZOOM ? unitOf(z, x, y) : null;
             if (unit && isBuilt(unit[0], unit[1])) {
-                // the version in the URL: the browser keeps a tile an hour, and a unit built again has new ones
-                return bytes(opts.api + "lidar/tiles/" + z + "/" + x + "/" + y + ".png?v=" + built[unit[0] + "_" + unit[1]], signal, "same-origin")
+                return bytes(lidarUrl(z, x, y, unit), signal, "same-origin")
                     .catch(function (e) { if (signal && signal.aborted) throw e; return aws(z, x, y, signal); });
             }
             return aws(z, x, y, signal);
@@ -228,12 +327,9 @@
             units.forEach(function (u) {
                 var key = u.x + "_" + u.y;
                 var v = u.v || 0;
-                if (u.state === "done" && (!isBuilt(u.x, u.y) || built[key] !== v)) { built[key] = v; fresh = true; }
+                if (u.state === "done" && built[key] !== v) { built[key] = v; fresh = true; }
             });
-            if (fresh) {
-                version++;
-                if (opts.onTilesChanged) opts.onTilesChanged(tiles());
-            }
+            if (fresh) changed();
             var status = statusOf(units);
             if (opts.onStatus && !quiet) opts.onStatus(status);
             return !!(status && status.busy);
@@ -248,7 +344,28 @@
                 .catch(function () { /* the heights fall back on the terrain tiles */ });
         }
 
-        function isBuilt(x, y) { return Object.prototype.hasOwnProperty.call(built, x + "_" + y); }
+        function isBuilt(x, y) { return lidarOn && Object.prototype.hasOwnProperty.call(built, x + "_" + y); }
+
+        function changed() {
+            version++;
+            if (opts.onTilesChanged) opts.onTilesChanged(tiles());
+        }
+
+        // The chosen task's surface ({id, v, bounds: [west, south, east, north]}), or none
+        function setTask(t) {
+            var next = t && t.id && t.bounds ? {id: t.id, v: t.v || 0, bounds: t.bounds} : null;
+            if (JSON.stringify(next) === JSON.stringify(task)) return;
+            task = next;
+            changed();
+        }
+
+        function setLidar(on) {
+            if (lidarOn === !!on) return;
+            lidarOn = !!on;
+            changed();
+        }
+
+        function hasTask(x, y) { return !!task && touches(task.bounds, UNIT_ZOOM, x, y); }
 
         function request(bounds) {
             stop();
@@ -289,11 +406,13 @@
             return request(bounds);
         }
 
-        return {source: source, request: request, ensure: ensure, refresh: refresh, stop: stop, load: load, isBuilt: isBuilt};
+        return {source: source, request: request, ensure: ensure, refresh: refresh, stop: stop, load: load, isBuilt: isBuilt,
+                setTask: setTask, hasTask: hasTask, setLidar: setLidar};
     }
 
     var api = {createLidarSurface: createLidarSurface, createStatusBar: createStatusBar, watchElevation: watchElevation, PARENTS: PARENTS,
                boundsOf: boundsOf, statusOf: statusOf, parentCrop: parentCrop, unitOf: unitOf, unitsKey: unitsKey,
+               blend: blend, cropRgba: cropRgba, tileLonLat: tileLonLat,
                POLL_MS: POLL_MS, POLL_DEADLINE_MS: POLL_DEADLINE_MS, NOTE_MS: NOTE_MS, LOADING_DELAY_MS: LOADING_DELAY_MS};
     root.MissionPlannerLidar = api;
     if (typeof module !== "undefined" && module.exports) module.exports = api;

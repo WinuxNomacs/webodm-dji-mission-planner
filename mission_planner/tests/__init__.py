@@ -10,7 +10,7 @@ import os
 import shutil
 import tempfile
 
-from .. import lidar
+from .. import lidar, task_surface
 from ..missions import geoid
 
 geoid.grid_folder = lambda: os.path.join(os.path.dirname(__file__), "fixtures", "geoid")
@@ -34,3 +34,15 @@ def _no_lidar_build(units):
 
 
 lidar._enqueue = _no_lidar_build
+
+# The task surfaces (task_surface.py) too: a scratch folder, and a cut queued only where a test patches _enqueue
+_TASKS = tempfile.mkdtemp(prefix="mp-test-tasks-")
+atexit.register(shutil.rmtree, _TASKS, True)
+task_surface.root = lambda: _TASKS
+
+
+def _no_task_cut(task_id):
+    raise RuntimeError("the tests do not queue task surface cuts")
+
+
+task_surface._enqueue = _no_task_cut

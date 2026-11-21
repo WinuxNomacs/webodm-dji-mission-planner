@@ -140,7 +140,8 @@
         });
     }
 
-    // opts: {load(z, x, y) -> Promise<{data: ArrayBuffer}>, isBuilt(unitX, unitY) -> bool, decode(buffer) -> Promise<rgba>}
+    // opts: {load(z, x, y) -> Promise<{data: ArrayBuffer or image, rgba?}>, isBuilt(unitX, unitY) -> bool (the unit is
+    //        read at zoom 18: the lidar's, or a task's surface), decode(buffer) -> Promise<rgba>}
     // Returns {heightAt(lng, lat) -> Promise<{height, source: "lidar" | "terrain"} | null>,
     //          heightsAt(points [[lng, lat], ...]) -> Promise<[meters or null, ...]>, bandMaxes(...),
     //          clear() (the tiles read so far forgotten: the lidar's were made again)}
@@ -151,7 +152,8 @@
         function pixels(z, x, y) {
             var key = z + "/" + x + "/" + y;
             if (!cache[key]) {
-                cache[key] = opts.load(z, x, y).then(function (r) { return decode(r.data); });
+                // a tile blended with a task's comes with its pixels (lidar_surface.js), read as they are
+                cache[key] = opts.load(z, x, y).then(function (r) { return r.rgba || decode(r.data); });
                 cache[key].catch(function () { delete cache[key]; });          // a failed tile is tried again later
                 order.push(key);
                 if (order.length > CACHE) delete cache[order.shift()];

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Your WebODM task in the editors' map: the layers panel lists your processed tasks over the route; pick one to show
+  its DSM as the 3D view's ground (matched to the ground around it, read by the pointer, the collision check and
+  Relief) and its orthophoto over the basemap, in 2D and 3D. Remembered per route by the browser.
 - The 3D view and the heights under the pointer show a lidar unit's new surface as soon as it is built again (or its
   edges are remade for a neighbour), instead of the old one the browser kept for up to an hour.
 - AGL routes over the lidar terrain fly each waypoint over the highest point within 15 m of the legs to and from it,

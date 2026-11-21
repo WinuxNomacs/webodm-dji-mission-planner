@@ -8,10 +8,7 @@ to its title.
 
 **Up next**
 
-1. **Phase 23: your WebODM task's DSM in the 3D view** (the user, 2026-11-20: "important", before the next release):
-   where a processed task the user can see covers the route, the 3D view's ground is that task's DSM instead of the
-   lidar, so the ground is as new as the last flight and at the task's detail, and its orthophoto as the photo. Planned
-   with the user 2026-11-20 (the "Phase 23" section).
+Nothing planned: ask the user (check `new.md`).
 
 Left to the user (Phase 18): ask GitHub Support to garbage-collect the repo and drop cached views of the replaced
 commits, then make it public.
@@ -46,8 +43,23 @@ the geoid grid, readable download errors, double downloads, and the remembered m
 4. **Scotland, Wales and Northern Ireland** (the user, 2026-11-20: after England): each nation's lidar as a region,
    once its service is vetted (the Scottish Remote Sensing Portal, Natural Resources Wales through DataMapWales,
    OpenDataNI; partial coverage, and not yet known whether any can be fetched by a program).
+5. **A task's DSM at its own detail** (found building Phase 23, 2026-11-20): the 3D ground stops at zoom 18 (about
+   0.45 m a pixel at 42 degrees), so a 5 cm task DSM loses its finer shapes. Zooms 19-20 for the task would need the
+   ground's source to go past 18 (the lidar and AWS cut from their zoom-18 and zoom-15 tiles above it, more tiles
+   loaded everywhere): to measure in the 3D view's load before deciding.
 
 **Done**
+- **Phase 23: your WebODM task in the editors' map** (2026-11-20, `phase-23-task-surface`): Map layers' "WebODM task"
+  lists the user's processed tasks over the route (`TaskSurfacesView`, `task-surfaces`); one picked shows its DSM as the
+  3D ground and/or its orthophoto (WebODM's own tiles) over the basemap, remembered per route in the browser
+  (`task_layers.js`). The DSM is cut by the worker into RGBA Terrarium tiles, zoom 15-18, its weight in the alpha
+  (`task_surface.py`, `TaskSurfaceView`, `TaskSurfaceTileView`), shifted to the lidar or terrain on open ground
+  (RoofSampleRGB: -1.1 m against the lidar), and blended in the browser over whatever is under it
+  (`lidar_surface.js` `setTask`, `blend`; no canvas read, Brave). Tests: `test_task_surface.py` (27, each failure
+  seen caught by breaking its handler), `task_layers.test.js`, `layers_panel.test.js`, `lidar_surface.test.js`,
+  `pointer_height.test.js`. Live on a worktree instance (`worktree_server.sh`, new) with `task_surface_check.js`.
+  Left for later: zooms finer than 18 for a task (its 5 cm DSM shows at about 0.45 m a pixel); the settings page does
+  not count or clear the task surfaces (small: 31 KB for RoofSampleRGB; removed with their task).
 - **The lidar tiles' cache** (found 2026-11-20, `lidar-tile-version`): a tab open while a unit was built again, or its
   tiles made again for a neighbour, read the old tiles for up to an hour (`Cache-Control`, an unversioned URL). Now
   `make_tiles` writes `tiles.json` (when, in microseconds: exact in JavaScript) once all the unit's tiles are written, `lidar.states` answers

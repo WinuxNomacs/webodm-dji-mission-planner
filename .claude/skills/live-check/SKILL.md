@@ -5,6 +5,13 @@ description: Check a UI change in a real headless browser against the plugin's d
 
 # Live browser check
 
+## Unmerged code
+
+`mp-webapp` serves the main checkout. To check a worktree's code before merging, serve it on its own port:
+`worktree_server.sh start <worktree> [port]` (beside this file; default 8011, `stop [port]` after). It shares the dev
+stack's database, media and broker and runs worker jobs inline, so they never reach `mp-worker` (main's code). Run the
+check scripts from the main checkout (they load Playwright from its `node_modules`) against that port.
+
 ## Login
 
 The change is checked on WebODM 4.0.0 (http://localhost:8009).
@@ -84,6 +91,11 @@ and read the page's console messages. A KMZ is uploaded with `setInputFiles` on 
   Pointer, three dots in 2D and 3D (labels against the tooltip off the route, the lines' differences), imperial,
   clearing by a dot and by Polygon; a new waypoint route: a click is a dot in Pointer and a point in Add points.
   Deletes its routes.
+- A WebODM task in the map (Phase 23): `task_surface_check.js` (beside this file; how to run it in its first lines):
+  a route and a processed task over it (on :8009, the user's restored RoofSampleRGB over m4t-test-poi-waypoint); picks
+  it in Map layers, screenshots the orthophoto in 2D, DSM and orthophoto in 3D, the DSM alone, the lidar again, reloads
+  (remembered), reads the collision line; `brave` adds Brave's canvas noise. Afterwards remove
+  `mission_planner_data/tasks/<task id>` in the plugin media.
 - Lidar terrain for AGL routes (Phase 14): `lidar_terrain_check.js` (beside this file; how to run it in its first
   lines): the oblique AGL sample's lidar terrain (waiting while units build), its KMZ and COP30's, a waypoint AGL route's
   grounds, Paris and a 5 km2 route on COP30 with their reasons; about 6 OpenTopography calls. Compare the KMZs with

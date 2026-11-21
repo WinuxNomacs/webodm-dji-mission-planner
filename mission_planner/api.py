@@ -28,7 +28,7 @@ from .missions.cameras import CAMERAS_BY_MODEL, footprint, ground_sample_distanc
 from .missions.elevation import ElevationError, fetch_ground_elevation
 from .missions.planning import PlanError
 from app.models import Project, Task
-from . import lidar, lidar_terrain, routes, surface
+from . import lidar, lidar_terrain, routes, surface, task_surface
 from .routes import AIRCRAFT_MODELS, ROUTE_TYPES, RouteGone
 
 # The route types that can be created and planned (routes.ROUTE_TYPES lists the same ones today)
@@ -1049,13 +1049,7 @@ def tasks_covering(user, area, limit):
 
 def dsm_extent(task):
     """A task's DSM extent as a GEOS polygon (longitude and latitude), None when it has none that reads"""
-    extent = task.dsm_extent
-    try:                                            # a GeoJSON polygon
-        if extent.get("type") != "Polygon":
-            return None
-        return Polygon(*[[(float(x), float(y)) for x, y, *_ in ring] for ring in extent["coordinates"]])
-    except (AttributeError, KeyError, TypeError, ValueError, IndexError):
-        return None
+    return _extent(task.dsm_extent)
 
 
 def parse_lidar_bounds(value):
@@ -1109,3 +1103,102 @@ class LidarTileView(APIView):
             raise Http404("No lidar tile here")     # removed by the lidar folder's cap since it was found
         response["Cache-Control"] = "private, max-age=3600"
         return response
+
+
+def viewable_tasks(user):
+    """The tasks of the projects the user can view (not being deleted)"""
+    projects = get_objects_for_user(user, "view_project", Project, accept_global_perms=False)
+    return Task.objects.filter(project__in=projects, project__deleting=False)
+
+
+def viewable_task(user, task_id):
+    """The task, if the user can view it; Http404 otherwise (a task of someone else's says nothing of itself)"""
+    if not task_surface.is_task_id(task_id):
+        raise Http404("No such task")
+    task = viewable_tasks(user).filter(pk=task_id).select_related("project").first()
+    if task is None:
+        raise Http404("No such task")
+    return task
+
+
+def _extent(geojson):
+    """A GeoJSON polygon (WebODM's extents) as a GEOS polygon, None when it does not read"""
+    try:                                            # a GeoJSON polygon
+        if geojson.get("type") != "Polygon":
+            return None
+        return Polygon(*[[(float(x), float(y)) for x, y, *_ in ring] for ring in geojson["coordinates"]])
+    except (AttributeError, KeyError, TypeError, ValueError, IndexError):
+        return None
+
+
+class TaskSurfacesView(APIView):
+    """GET task-surfaces?bounds=w,s,e,n: the processed tasks the user can view with a DSM or an orthophoto whose area
+    overlaps the route's (Map layers lists them, Phase 23), the most recent first: {"tasks": [{id, project, name, dsm,
+    orthophoto}]}, dsm and orthophoto whether the task has each over the route"""
+    permission_classes = (permissions.IsAuthenticated,)
+    MAX_TASKS = 50
+
+    def get(self, request):
+        try:
+            w, s, e, n = parse_lidar_bounds(request.query_params.get("bounds"))
+        except RequestError as err:
+            return Response({"error": str(err)}, status=status.HTTP_400_BAD_REQUEST)
+        if not (w <= e and s <= n):
+            return Response({"error": "bounds must be [west, south, east, north]"}, status=status.HTTP_400_BAD_REQUEST)
+        area = Polygon.from_bbox((w, s, e, n)) if (w < e and s < n) else Point(w, s)
+        tasks = (viewable_tasks(request.user).filter(available_assets__overlap=["dsm.tif", "orthophoto.tif"])
+                 .select_related("project")
+                 .only("id", "name", "available_assets", "dsm_extent", "orthophoto_extent", "project__id", "project__name")
+                 .order_by("-created_at"))
+        task_surface.prune()                        # the surfaces of tasks deleted since
+        found = []
+        for task in tasks.iterator():
+            assets = task.available_assets or []
+            dsm = "dsm.tif" in assets and _overlaps(task.dsm_extent, area)
+            ortho = "orthophoto.tif" in assets and _overlaps(task.orthophoto_extent, area)
+            if dsm or ortho:
+                found.append({"id": str(task.id), "project": task.project.id, "project_name": task.project.name,
+                              "name": task.name or str(task.id), "dsm": dsm, "orthophoto": ortho})
+                if len(found) == self.MAX_TASKS:
+                    break
+        return Response({"tasks": found})
+
+
+def _overlaps(geojson, area):
+    extent = _extent(geojson) if isinstance(geojson, dict) else None
+    return extent is not None and extent.intersects(area)
+
+
+class TaskSurfaceView(APIView):
+    """A task's DSM as the 3D view's ground (task_surface.py). POST task-surface {"task": id} queues its cut when it
+    needs one; GET task-surface?task=id answers its state. Both answer {"state", "message", "v", "shift", "match",
+    "reference", "bounds"}; 404 for a task the user cannot view."""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        task = viewable_task(request.user, request.query_params.get("task"))
+        return Response(task_surface.answer(str(task.id)))
+
+    def post(self, request):
+        task = viewable_task(request.user, request.data.get("task") if isinstance(request.data, dict) else None)
+        return Response(task_surface.request(task))
+
+
+class TaskSurfaceTileView(APIView):
+    """GET task-surface/<task>/tiles/<z>/<x>/<y>.png: a tile of the task's surface (Terrarium, its weight in the alpha),
+    404 where there is none or the user cannot view the task"""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request, task, z, x, y):
+        task = viewable_task(request.user, task)
+        path = task_surface.tile_path(str(task.id), int(z), int(x), int(y))
+        if path is None:
+            raise Http404("No tile here")
+        try:
+            with open(path, "rb") as f:
+                response = HttpResponse(f.read(), content_type="image/png")
+        except FileNotFoundError:
+            raise Http404("No tile here")     # its tiles swapped for new ones since it was found
+        response["Cache-Control"] = "private, max-age=3600"     # the URL has the tiles' version
+        return response
+
