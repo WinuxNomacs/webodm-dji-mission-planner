@@ -47,7 +47,7 @@ the geoid grid, readable download errors, double downloads, and the remembered m
    0.45 m a pixel at 42 degrees), so a 5 cm task DSM loses its finer shapes. Zooms 19-20 for the task would need the
    ground's source to go past 18 (the lidar and AWS cut from their zoom-18 and zoom-15 tiles above it, more tiles
    loaded everywhere): to measure in the 3D view's load before deciding.
-6. **Left from the pre-release review of 2026-11-20** (fixed: 6 of its 10 findings, on `review-fixes-2.1`): a task's
+6. **Left from the pre-release review of 2026-11-20** (fixed: 7 of its 10 findings, on `review-fixes-2.1`; its commit message says 4 left, it is these 3): a task's
    cut whose worker job was lost stays queued for STALE_AFTER (30 min, as the lidar units) while the editor gives up
    after 10; the task list prunes deleted tasks' folders in its request; each task tile checks the task's permission
    in the database. Each is small or a deliberate trade-off (the permission check per tile keeps a task private once
