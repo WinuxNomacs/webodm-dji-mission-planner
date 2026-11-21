@@ -700,7 +700,7 @@
         maplibregl: maplibregl, fetch: fetch.bind(window), api: API, csrf: csrf, onStatus: lidarBar.show, lidar: lidarOn,
         onTilesChanged: function (tiles) {
             var dem = map.getSource("mp-dem");
-            if (dem && lidarOn && dem.setTiles) dem.setTiles(tiles);
+            if (dem && (lidarOn || taskSurface) && dem.setTiles) dem.setTiles(tiles);   // the source is the lidar surface's
             if (heightReader) heightReader.clear();     // the heights read from the tiles before are read again
             showLabels();                       // the surface under the points is the lidar's now
             if (route3d) route3d.refresh();

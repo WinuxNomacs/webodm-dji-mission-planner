@@ -238,6 +238,29 @@ class TestFlownGroundHeights(SimpleTestCase):
         with self.assertRaisesRegex(TerrainError, "does not cover"):
             terrain.flown_ground_heights(self.terrain(), [(WEST - 0.01, START_LAT), (WEST - 0.009, START_LAT)], LIDAR_NAME)
 
+    def test_only_the_cells_round_each_leg_are_measured_and_they_give_what_every_cell_would(self):
+        rng = np.random.default_rng(7)
+        values = rng.integers(180, 260, size=(60, 160)).astype(float)
+        tif = geotiff(values, dtype="int16", cell=LIDAR_CELL)
+        # legs of every direction and length, one along the terrain's edge and one with an end off it
+        path = [(WEST + c * LIDAR_CELL, NORTH - r * LIDAR_CELL)
+                for c, r in [(3, 3), (40, 12), (41.5, 50), (12, 57), (150, 59.5), (158, 1), (165, -2), (90, 30), (90.2, 30.1)]]
+
+        def every_cell(a, b):
+            lat0 = (a[1] + b[1]) / 2
+            kx, ky = terrain.METERS_PER_DEGREE * np.cos(np.radians(lat0)), 110540.0
+            half = np.hypot(LIDAR_CELL * kx, LIDAR_CELL * ky) / 2
+            rows, cols = np.indices(values.shape)
+            px, py = (WEST + (cols + 0.5) * LIDAR_CELL - a[0]) * kx, (NORTH - (rows + 0.5) * LIDAR_CELL - a[1]) * ky
+            bx, by = (b[0] - a[0]) * kx, (b[1] - a[1]) * ky
+            length = bx * bx + by * by
+            t = np.clip((px * bx + py * by) / length, 0, 1) if length else 0
+            return values[np.hypot(px - t * bx, py - t * by) <= terrain.LIDAR_RADIUS + half].max()
+
+        tops = [every_cell(a, b) for a, b in zip(path, path[1:])]
+        expected = [max(tops[max(i - 1, 0)], tops[min(i, len(tops) - 1)]) for i in range(len(path))]
+        self.assertEqual(terrain.flown_ground_heights(tif, path, LIDAR_NAME), expected)
+
     def test_the_lowest_ground_near_a_point_is_its_lowest_cell_within_the_radius(self):
         tif = self.terrain(block=(0, 0))
         self.assertEqual(terrain.lowest_ground_near(tif, *self.path(0)[0]), 200)

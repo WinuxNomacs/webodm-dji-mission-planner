@@ -220,6 +220,14 @@ describe("watching the map's elevation", () => {
     });
 });
 
+// A zoom-15 parent whose pixels say where they are: red its column, green its row
+const PARENT = (() => {
+    const out = new Uint8ClampedArray(256 * 256 * 4);
+    for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) { out[(j * 256 + i) * 4] = i; out[(j * 256 + i) * 4 + 1] = j; out[(j * 256 + i) * 4 + 3] = 255; }
+    return out;
+})();
+const cornerOf = rgba => ({left: rgba[0], top: rgba[1]});
+
 describe("lidar surface", () => {
     let timers, statuses, tileChanges, clock, decoded;
     const make = (handler, over = {}) => {
@@ -233,8 +241,8 @@ describe("lidar surface", () => {
             fetch, api: API, csrf: "token", now: () => clock,
             setTimeout: (f, ms) => { timers.push({f, ms}); return timers.length; }, clearTimeout: id => { timers[id - 1] = null; },
             onStatus: s => statuses.push(s), onTilesChanged: t => tileChanges.push(t),
-            decodeParent: blob => { decoded.push(blob.url); return Promise.resolve({image: blob.url}); },
-            crop: (image, c) => Promise.resolve({cropped: c, from: image.image})
+            decodeRgba: () => { decoded.push(1); return Promise.resolve(PARENT); },
+            toImage: rgba => Promise.resolve({image: rgba})
         }, over));
         return {surface, fetch};
     };
@@ -285,7 +293,9 @@ describe("lidar surface", () => {
         expect(fetch.calls.pop()).toMatchObject({url: AWS + "14/50/100.png", init: {credentials: "omit"}});
         const r = await surface.load({url: "mplidar://17/409/802?v=1"});        // unit 102_200: not built
         expect(fetch.calls.pop().url).toBe(AWS + "15/102/200.png");
-        expect(r.data).toEqual({cropped: {x: 102, y: 200, left: 64, top: 128, size: 64}, from: AWS + "15/102/200.png"});
+        expect(cornerOf(r.rgba)).toEqual({left: 64, top: 128});           // its pixels, read without a canvas
+        expect(r.rgba[(255 * 256 + 255) * 4]).toBe(64 + 63);                 // 64 pixels enlarged to 256
+        expect(r.data).toEqual({image: r.rgba});                             // and the map's image of them
     });
 
     it("loads a unit's tiles at their version, and reloads the terrain when a unit's tiles are made again", async () => {
@@ -308,8 +318,8 @@ describe("lidar surface", () => {
         const r = await Promise.all([surface.load({url: "mplidar://17/409/802?v=0"}), surface.load({url: "mplidar://17/410/802?v=0"}),
                                      surface.load({url: "mplidar://18/819/1604?v=0"})]);
         expect(fetch.calls.map(c => c.url)).toEqual([AWS + "15/102/200.png"]);
-        expect(decoded).toEqual([AWS + "15/102/200.png"]);
-        expect(r.map(t => t.data.cropped.left)).toEqual([64, 128, 96]);
+        expect(decoded.length).toBe(1);
+        expect(r.map(t => cornerOf(t.rgba).left)).toEqual([64, 128, 96]);
     });
 
     it("fetches a parent again for the next tile when it could not be had", async () => {
@@ -319,7 +329,7 @@ describe("lidar surface", () => {
         fail = false;
         const r = await surface.load({url: "mplidar://17/410/802?v=0"});
         expect(fetch.calls.length).toBe(2);
-        expect(r.data.from).toBe(AWS + "15/102/200.png");
+        expect(cornerOf(r.rgba)).toEqual({left: 128, top: 128});
     });
 
     it("keeps a tile's parent for the others when that tile is cancelled", async () => {
@@ -329,7 +339,7 @@ describe("lidar surface", () => {
         ac.abort();
         await expect(first).rejects.toThrow();
         const r = await surface.load({url: "mplidar://17/410/802?v=0"});
-        expect(r.data.from).toBe(AWS + "15/102/200.png");
+        expect(cornerOf(r.rgba)).toEqual({left: 128, top: 128});
         expect(fetch.calls.length).toBe(1);
     });
 
@@ -479,7 +489,6 @@ describe("a task's surface over the rest", () => {
             fetch, api: API, csrf: "t", onTilesChanged: t => changes.push(t), onStatus: () => {},
             decodeRgba: buf => Promise.resolve(tiles[new Uint8Array(buf)[0]]),
             toImage: rgba => { images.push(rgba); return Promise.resolve({image: true}); },
-            decodeParent: () => Promise.resolve({image: "parent"}), crop: (image, c) => Promise.resolve({cropped: c})
         }, over));
     };
     const answer = which => ({status: 200, bytes: new Uint8Array([which]).buffer});
@@ -525,8 +534,9 @@ describe("a task's surface over the rest", () => {
     it("loads the tiles away from the task as before", async () => {
         setup(web());
         surface.setTask({id: "abc", v: 1, bounds: BOUNDS});
-        await surface.load({url: "mplidar://18/" + (X + 40) + "/" + Y});
+        const r = await surface.load({url: "mplidar://18/" + (X + 40) + "/" + Y});
         expect(fetch.calls.some(c => c.url.indexOf("task-surface/") >= 0)).toBe(false);
+        expect(heightOf(r.rgba)).toBeCloseTo(200, 2);                      // AWS's pixels, read without a canvas (Brave)
         expect(surface.hasTask(UNIT.x, UNIT.y)).toBe(true);
         expect(surface.hasTask(UNIT.x + 5, UNIT.y)).toBe(false);
     });

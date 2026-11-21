@@ -94,7 +94,7 @@
             var mine = generation, started = now();
             function take(r) {
                 return r.json().catch(function () { return {}; }).then(function (body) {
-                    if (!r.ok) throw new Error(body.error || body.detail || ("HTTP " + r.status));
+                    if (!r.ok) { var e = new Error(body.error || body.detail || ("HTTP " + r.status)); e.status = r.status; throw e; }
                     return body;
                 });
             }
@@ -103,10 +103,6 @@
                 panel.setTaskNote(surfaceNote(body));
                 if (body.state === "done") { opts.onSurface({id: task.id, v: body.v, bounds: body.bounds}); return; }
                 if (body.state === "failed") { opts.onSurface(null); return; }
-                if (now() - started > POLL_DEADLINE_MS) {
-                    panel.setTaskNote("The task's DSM was not ready within 10 minutes");
-                    return;
-                }
                 timer = later(poll, POLL_MS);
             }
             function failed(e) {
@@ -117,8 +113,16 @@
             function poll() {
                 timer = null;
                 if (mine !== generation) return;
+                // checked here, so that a server that keeps failing ends the polling too
+                if (now() - started > POLL_DEADLINE_MS) {
+                    panel.setTaskNote("The task's DSM was not ready within 10 minutes");
+                    return;
+                }
                 fetchFn(opts.api + "task-surface?task=" + encodeURIComponent(task.id), {credentials: "same-origin"})
-                    .then(take).then(answer, function () { if (mine === generation) timer = later(poll, POLL_MS); });
+                    .then(take).then(answer, function (e) {
+                        if (e.status >= 400 && e.status < 500) { failed(e); return; }   // the task gone, or no longer the user's
+                        if (mine === generation) timer = later(poll, POLL_MS);          // a missed answer: ask again
+                    });
             }
             panel.setTaskNote("Preparing the task's DSM…");
             fetchFn(opts.api + "task-surface", {
@@ -162,9 +166,11 @@
                     var before = current();
                     tasks = body.tasks || [];
                     var after = current();
-                    // the same task still there: nothing to redo
-                    if (before && after && before.id === after.id) { panel.setTasks(tasks, after.id); return; }
-                    return apply();
+                    if (!before || !after || before.id !== after.id) return apply();
+                    // the same task still there: only what it has over the route now (its DSM, its orthophoto) redone
+                    if (before.dsm !== after.dsm) applyDsm();
+                    if (before.orthophoto !== after.orthophoto) return applyOrthophoto();
+                    controls();
                 })
                 .catch(function () { listed = null; });
         }

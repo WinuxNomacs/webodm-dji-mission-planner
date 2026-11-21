@@ -131,23 +131,6 @@
         return {check: check};
     }
 
-    // A tile's PNG as an image, its colours as they are (they encode heights). The browser's version; the tests pass their own.
-    function decodeInBrowser(blob) {
-        return root.createImageBitmap(blob, {colorSpaceConversion: "none", premultiplyAlpha: "none"});
-    }
-
-    // Draws `size` x `size` pixels of a decoded tile image, from (left, top), enlarged to 256 x 256 without blending,
-    // and answers it as an ImageBitmap, which MapLibre takes from a protocol as it is (encoding it as PNG again took
-    // most of the 3D view's load, Phase 21). The browser's version; the tests pass their own.
-    function cropInBrowser(image, crop) {
-        var canvas = typeof root.OffscreenCanvas === "function" ? new root.OffscreenCanvas(TILE, TILE) : root.document.createElement("canvas");
-        canvas.width = canvas.height = TILE;
-        var ctx = canvas.getContext("2d");
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(image, crop.left, crop.top, crop.size, crop.size, 0, 0, TILE, TILE);
-        return root.createImageBitmap(canvas);
-    }
-
     // The bounds of a web-mercator tile, [west, south, east, north] in degrees
     function tileLonLat(z, x, y) {
         var n = Math.pow(2, z);
@@ -195,7 +178,7 @@
         return root.createImageBitmap(new root.ImageData(rgba, TILE, TILE));
     }
 
-    // opts: {maplibregl, fetch, api, csrf, onStatus(status|null), onTilesChanged(tiles), crop(blob, crop), now(),
+    // opts: {maplibregl, fetch, api, csrf, onStatus(status|null), onTilesChanged(tiles), now(),
     //        setTimeout, clearTimeout, decodeRgba(buffer) -> Promise<rgba> (pointer_height.js's, no canvas: Brave),
     //        toImage(rgba) -> Promise<image>, lidar: false (the lidar's tiles not used, until setLidar(true))}
     // Returns {source(), request(bounds), refresh(bounds), stop(), load(params, abortController), isBuilt(unitX, unitY),
@@ -204,28 +187,11 @@
     function createLidarSurface(opts) {
         var fetchFn = opts.fetch, now = opts.now || function () { return Date.now(); };
         var later = opts.setTimeout || setTimeout.bind(root), cancel = opts.clearTimeout || clearTimeout.bind(root);
-        var crop = opts.crop || cropInBrowser, decodeParent = opts.decodeParent || decodeInBrowser;
         var built = {}, version = 0, generation = 0, timer = null;   // built: the units' tiles' versions, by "x_y"
         var task = null, lidarOn = opts.lidar !== false;
         var decodeRgba = opts.decodeRgba || function (b) { return root.MissionPlannerPointerHeight.decodeInBrowser(b); };
         var toImage = opts.toImage || imageInBrowser;
-        var rgbaParents = {}, rgbaOrder = [];   // zoom-15 AWS tiles as RGBA, for the tiles blended with a task's
-        var parents = {}, parentOrder = [];     // zoom-15 AWS tiles, decoded once for every tile cut from them
-
-        // The decoded zoom-15 AWS tile, shared by the tiles above it: fetched without a tile's signal, since another
-        // tile may still need it; dropped when it fails, so that the next tile tries again
-        function parent(x, y) {
-            var key = x + "/" + y;
-            if (!parents[key]) {
-                var p = parents[key] = fetchFn(AWS.replace("{z}", UNIT_ZOOM).replace("{x}", x).replace("{y}", y), {credentials: "omit"})
-                    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); })
-                    .then(decodeParent);
-                p.catch(function () { if (parents[key] === p) { delete parents[key]; parentOrder.splice(parentOrder.indexOf(key), 1); } });
-                parentOrder.push(key);
-                if (parentOrder.length > PARENTS) delete parents[parentOrder.shift()];
-            }
-            return parents[key];
-        }
+        var rgbaParents = {}, rgbaOrder = [];   // zoom-15 AWS tiles as RGBA, decoded once for every tile cut from them
 
         function bytes(url, signal, credentials) {
             return fetchFn(url, {signal: signal, credentials: credentials || "omit"}).then(function (r) {
@@ -234,16 +200,20 @@
             }).then(function (data) { return {data: data}; });
         }
 
+        // AWS's tile; above zoom 15 cut from its zoom-15 parent, as an image for the map with its pixels (read as they
+        // are by pointer_height.js: through a canvas, Brave would alter them)
         function aws(z, x, y, signal) {
             if (z <= UNIT_ZOOM) return bytes(AWS.replace("{z}", z).replace("{x}", x).replace("{y}", y), signal);
             var c = parentCrop(z, x, y);
-            return parent(c.x, c.y).then(function (image) {
+            return parentRgba(c.x, c.y).then(function (rgba) {
                 if (signal && signal.aborted) throw new Error("Cancelled");
-                return crop(image, c);
-            }).then(function (data) { return {data: data}; });
+                var cut = cropRgba(rgba, c);
+                return toImage(cut).then(function (image) { return {data: image, rgba: cut}; });
+            });
         }
 
-        // The zoom-15 AWS tile as RGBA (decoded without a canvas), shared by the blended tiles above it
+        // The zoom-15 AWS tile as RGBA (decoded without a canvas), shared by the tiles above it: fetched without a
+        // tile's signal, since another tile may still need it; dropped when it fails, so that the next tile tries again
         function parentRgba(x, y) {
             var key = x + "/" + y;
             if (!rgbaParents[key]) {

@@ -43,7 +43,7 @@ const make = (opts = {}) => {
         : url.indexOf("tiles.json") >= 0 ? {status: 200, body: {tiles: ["/api/projects/3/tasks/t1/orthophoto/tiles/{z}/{x}/{y}.png"], bounds: [1, 2, 3, 4], minzoom: 14, maxzoom: 23}}
         : {status: 200, body: state}));
     layers = T.createTaskLayers({map, panel, fetch, api: API, csrf: "tok", storage: opts.storage || null, routeKey: "routeKey" in opts ? opts.routeKey : "54",
-                                 before: () => "mp-hillshade", onSurface: s => surfaces.push(s), now: () => 0,
+                                 before: () => "mp-hillshade", onSurface: s => surfaces.push(s), now: opts.now || (() => 0),
                                  setTimeout: (f, ms) => { timers.push({f, ms}); return timers.length; }, clearTimeout: id => { timers[id - 1] = null; }});
     return layers;
 };
@@ -100,6 +100,65 @@ describe("a WebODM task in the map", () => {
         expect(panel.note).toBe("The task's DSM could not be shown: the disk is full");
         expect(surfaces.pop()).toBeNull();
         expect(timers.filter(Boolean).length).toBe(1);                       // the poll that ran, no new one
+    });
+
+    it("stops polling a server that keeps failing after 10 minutes, and at once when the task is gone", async () => {
+        let clock = 0, answer = {status: 200, body: {state: "queued"}};
+        make({now: () => clock, web: url => url.indexOf("task-surfaces") >= 0 ? {status: 200, body: {tasks: TASKS}}
+            : url.indexOf("tiles.json") >= 0 ? {status: 200, body: {tiles: []}} : answer});
+        await layers.list([1, 2, 3, 4]);
+        await layers.choose("t1");
+        await flush();
+        answer = {status: 500, body: {}};
+        const next = () => timers.filter(Boolean).pop();
+        next().f();
+        await flush();
+        expect(timers.filter(Boolean).length).toBe(2);                       // a missed answer: asked again
+        clock = 11 * 60 * 1000;
+        const polls = fetch.calls.length;
+        next().f();
+        await flush();
+        expect(fetch.calls.length).toBe(polls);                              // past the deadline: not asked
+        expect(panel.note).toBe("The task's DSM was not ready within 10 minutes");
+
+        clock = 0; answer = {status: 200, body: {state: "queued"}};
+        make({now: () => clock, web: url => url.indexOf("task-surfaces") >= 0 ? {status: 200, body: {tasks: TASKS}}
+            : url.indexOf("tiles.json") >= 0 ? {status: 200, body: {tiles: []}} : answer});
+        await layers.list([1, 2, 3, 4]);
+        await layers.choose("t1");
+        await flush();
+        answer = {status: 404, body: {detail: "No such task"}};
+        const before = timers.filter(Boolean).length;
+        next().f();
+        await flush();
+        expect(timers.filter(Boolean).length).toBe(before);                  // no new poll
+        expect(panel.note).toBe("The task's DSM could not be shown: No such task");
+        expect(surfaces.pop()).toBeNull();
+    });
+
+    it("the same task still over a moved route: its DSM or orthophoto follows what it has over the route now", async () => {
+        let listed = TASKS;
+        make({web: url => url.indexOf("task-surfaces") >= 0 ? {status: 200, body: {tasks: listed}}
+            : url.indexOf("tiles.json") >= 0 ? {status: 200, body: {tiles: ["/t/{z}/{x}/{y}.png"]}} : {status: 200, body: state}});
+        await layers.list([1, 2, 3, 4]);
+        await layers.choose("t1");
+        await flush();
+        expect(surfaces.pop()).toEqual({id: "t1", v: 9, bounds: [1, 2, 3, 4]});
+        const posts = () => fetch.calls.filter(c => c.init.method === "POST").length;
+        listed = [Object.assign({}, TASKS[0], {dsm: false}), TASKS[1]];
+        await layers.list([1, 2, 3, 5]);
+        await flush();
+        expect(surfaces.pop()).toBeNull();                                   // its DSM no longer over the route
+        expect(panel.layers.dsmEnabled).toBe(false);
+        expect(map.sources[T.ORTHO]).toBeDefined();                          // its orthophoto left as it was
+        listed = TASKS;
+        await layers.list([1, 2, 3, 6]);
+        await flush();
+        expect(surfaces.pop()).toEqual({id: "t1", v: 9, bounds: [1, 2, 3, 4]});
+        expect(posts()).toBe(2);
+        await layers.list([1, 2, 3, 7]);                                     // nothing changed: nothing asked again
+        await flush();
+        expect(posts()).toBe(2);
     });
 
     it("turns the orthophoto off without asking for the DSM again, and the DSM off without touching the photo", async () => {
