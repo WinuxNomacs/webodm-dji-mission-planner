@@ -33,7 +33,8 @@ updated and committed.
    LuxODM export made by hand (the format in `luxodm_import.py`, one route with terrain).
 6. **The upgrade path:** with an AGL route that has terrain still there, delete the plugin in Administration >
    Plugins and load the zip again (from 1.0.1 on: install the previous release's zip first, make the route with it,
-   then delete it and load the new one). The route opens with its terrain and downloads without fetching terrain
+   then delete it and load the new one, and `docker restart mp-worker` as the README's Upgrading says: the worker
+   keeps the old version's modules until restarted, and builds lidar units with them). The route opens with its terrain and downloads without fetching terrain
    again; `plugins/mission_planner_data/terrain/<id>` is still there. Then delete what the check made.
 7. **Leave it as found:** remove the installed plugin in Administration > Plugins (its data stores stay, shared with
    the mounted copy: the routes must be what they were before the check), then `dev/webodm.sh up --force-recreate
