@@ -70,7 +70,7 @@ Putting a mission on the controller (DJI Fly lists only missions made in it):
 3. Replace that `.kmz` with the downloaded one, renamed to the same name.
 4. Unplug the controller, close DJI Fly and open it again; open the mission and check it before flying.
 
-**Status:** version 2.0.0, the first published release (see `CHANGELOG.md`). The planner was moved here from LuxODM, a
+**Status:** version 2.1.0 (see `CHANGELOG.md`). The planner was moved here from LuxODM, a
 fork of WebODM where it was written, and runs on an unmodified WebODM 4.0.0 or later.
 
 **Experimental: use it at your own risk. Check every mission in DJI Pilot 2, FlightHub 2 or DJI Fly before flying it.**
@@ -183,8 +183,11 @@ Needs WebODM 4.0.0 or later.
 2. In WebODM, as an administrator: Administration > Plugins, "Load Plugin (.zip)", and choose the zip. The plugin is
    enabled when installed, and "DJI Mission Planner" shows in the side menu.
 
-**Upgrading:** Administration > Plugins, delete DJI Mission Planner, then load the new zip. The routes, their terrain and
-the OpenTopography key stay: they are kept outside the plugin's folder.
+**Upgrading:** Administration > Plugins, delete DJI Mission Planner, load the new zip, then restart WebODM
+(`./webodm.sh restart`, or restart its `webapp` and `worker` containers): until then the running WebODM keeps the old
+version's code, and its worker would build the lidar surfaces with it. The routes, their terrain and the OpenTopography
+key stay: they are kept outside the plugin's folder. A new version may build the lidar surfaces again once, the first
+time each is needed (its `CHANGELOG.md` entry says so).
 
 **Terrain:** the ground heights and the COP30 terrain under a route come from [OpenTopography](https://opentopography.org/)
 (Copernicus GLO-30 and SRTM GL1), which needs a free API key (the lidar terrain needs none, but fills its holes from COP30). An administrator sets it on the DJI Mission Planner page,
