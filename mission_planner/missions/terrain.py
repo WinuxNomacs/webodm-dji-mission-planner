@@ -202,24 +202,25 @@ def is_lidar(name):
     return bool(name) and "_LIDAR" in name
 
 
-def _cells(src, heights):
-    """The (lon, lat) centre of each cell, as two arrays"""
-    rows, cols = np.indices(heights.shape)
-    lons, lats = src.transform * (cols + 0.5, rows + 0.5)
-    return lons, lats
-
-
-def _near(src, heights, lons, lats, a, b, radius):
+def _near(src, heights, a, b, radius):
     """The heights of the cells within `radius` meters of the segment from a to b ((lon, lat); a point when a is b), a
-    cell counting when any of it may be (its centre within the radius and half its diagonal); none when off the terrain"""
+    cell counting when any of it may be (its centre within the radius and half its diagonal); none when off the terrain.
+    Only the cells of the box round the segment are measured (a terrain is up to 1000 x 1000 cells, a route has
+    hundreds of legs)."""
     lat0 = (a[1] + b[1]) / 2
     kx, ky = METERS_PER_DEGREE * math.cos(math.radians(lat0)), 110540.0
     half = math.hypot(abs(src.transform.a) * kx, abs(src.transform.e) * ky) / 2
-    west, south, east, north = src.bounds
     reach_lon, reach_lat = (radius + half) / kx, (radius + half) / ky
-    if (max(a[0], b[0]) + reach_lon < west or min(a[0], b[0]) - reach_lon > east
-            or max(a[1], b[1]) + reach_lat < south or min(a[1], b[1]) - reach_lat > north):
+    window = from_bounds(min(a[0], b[0]) - reach_lon, min(a[1], b[1]) - reach_lat,
+                         max(a[0], b[0]) + reach_lon, max(a[1], b[1]) + reach_lat, src.transform)
+    r0, c0 = max(int(math.floor(window.row_off)), 0), max(int(math.floor(window.col_off)), 0)
+    r1 = min(int(math.ceil(window.row_off + window.height)), heights.shape[0])
+    c1 = min(int(math.ceil(window.col_off + window.width)), heights.shape[1])
+    if r1 <= r0 or c1 <= c0:
         return heights[:0, :0].ravel()
+    heights = heights[r0:r1, c0:c1]
+    rows, cols = np.indices(heights.shape)
+    lons, lats = src.transform * (cols + c0 + 0.5, rows + r0 + 0.5)
     bx, by = (b[0] - a[0]) * kx, (b[1] - a[1]) * ky
     px, py = (lons - a[0]) * kx, (lats - a[1]) * ky
     length = bx * bx + by * by
@@ -238,11 +239,10 @@ def flown_ground_heights(tif, points, name):
         return ground_heights(tif, points)
     with MemoryFile(tif) as f, f.open() as src:
         heights = src.read(1)
-        lons, lats = _cells(src, heights)
         legs = list(zip(points, points[1:])) if len(points) > 1 else [(p, p) for p in points]
         tops = []
         for a, b in legs:
-            near = _near(src, heights, lons, lats, a, b, LIDAR_RADIUS)
+            near = _near(src, heights, a, b, LIDAR_RADIUS)
             if not near.size:
                 raise TerrainError("The terrain does not cover the route")
             tops.append(float(near.max()))
@@ -256,8 +256,7 @@ def lowest_ground_near(tif, lon, lat, radius=LIDAR_RADIUS):
     stands on, not a tree or a roof beside it)"""
     with MemoryFile(tif) as f, f.open() as src:
         heights = src.read(1)
-        lons, lats = _cells(src, heights)
-        near = _near(src, heights, lons, lats, (lon, lat), (lon, lat), radius)
+        near = _near(src, heights, (lon, lat), (lon, lat), radius)
         if not near.size:
             raise TerrainError("The terrain does not cover the route")
         return float(near.min())
