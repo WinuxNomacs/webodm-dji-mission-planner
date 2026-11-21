@@ -2,7 +2,7 @@
     "name": "DJI Mission Planner",
     "webodmMinVersion": "4.0.0",
     "description": "Plan survey flights for DJI drones (area, linear, waypoint, slope and geometric routes) and download the mission file for DJI Pilot 2 or DJI Fly. Experimental, use it at your own risk: check every mission in its app before flying it.",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "author": "Winux Nomacs",
     "tags": [
         "mission",

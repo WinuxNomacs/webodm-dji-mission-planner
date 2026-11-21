@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 2.1.0 (2026-11-20)
+
+Needs WebODM 4.0.0 or later. Upgrading from 2.0.0 keeps the routes, their terrain and the key; each lidar surface is
+built again once, the first time it is needed (about 15 s a km²).
 
 - Your WebODM task in the editors' map: the layers panel lists your processed tasks over the route; pick one to show
   its DSM as the 3D view's ground (matched to the ground around it, read by the pointer, the collision check and
