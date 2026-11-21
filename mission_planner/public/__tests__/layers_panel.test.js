@@ -181,3 +181,43 @@ describe("relief choice", () => {
         expect(seen).toEqual([true]);
     });
 });
+
+describe("WebODM task", () => {
+    const select = () => panel.element.querySelector(".mp-layers-task");
+    const dsm = () => panel.element.querySelector(".mp-layers-task-dsm input");
+    const ortho = () => panel.element.querySelector(".mp-layers-task-ortho input");
+    const TASKS = [{id: "a", name: "Roof", project_name: "Survey"}, {id: "b", name: "Field", project_name: "Survey"}];
+
+    it("is not there unless asked for", () => {
+        make();
+        expect(select()).toBeNull();
+        panel.setTasks(TASKS, "a");                                         // harmless
+    });
+
+    it("lists the tasks to pick one or none, and says when there are none", () => {
+        const picked = [];
+        make({tasks: true, onTask: id => picked.push(id)});
+        expect(select().disabled).toBe(true);
+        expect(select().options[0].textContent).toBe("None over the route");
+        panel.setTasks(TASKS, "b");
+        expect(Array.from(select().options).map(o => o.textContent)).toEqual(["None", "Roof (Survey)", "Field (Survey)"]);
+        expect(select().value).toBe("b");
+        select().value = "a";
+        select().dispatchEvent(new Event("change"));
+        select().value = "";
+        select().dispatchEvent(new Event("change"));
+        expect(picked).toEqual(["a", null]);
+    });
+
+    it("turns the task's DSM and orthophoto on and off, each only where the task has it", () => {
+        const got = {dsm: [], ortho: []};
+        make({tasks: true, onTaskDsm: on => got.dsm.push(on), onTaskOrthophoto: on => got.ortho.push(on)});
+        expect(dsm().disabled && ortho().disabled).toBe(true);
+        panel.setTaskLayers({dsm: true, orthophoto: true, dsmEnabled: false, orthophotoEnabled: true});
+        expect([dsm().checked, dsm().disabled, ortho().checked, ortho().disabled]).toEqual([false, true, true, false]);
+        ortho().click();
+        expect(got.ortho).toEqual([false]);
+        panel.setTaskNote("Preparing the task's DSM…");
+        expect(panel.element.querySelector(".mp-layers-task-note").textContent).toBe("Preparing the task's DSM…");
+    });
+});

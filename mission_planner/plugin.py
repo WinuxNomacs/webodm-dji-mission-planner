@@ -11,7 +11,7 @@ from app.plugins import PluginBase, Menu, MountPoint
 from . import config, lidar, luxodm_import, routes
 from .missions import drones
 from .missions.elevation import ElevationError, KeyRefused, check_api_key
-from .api import BlockHeightsView, ExportView, FaceHeightsView, KmlView, LidarSurfaceView, LidarTileView, PlanView, RouteCopyView, RouteDetailView, RouteElevationView, RouteImportView, RouteListCreateView, RoutePointElevationsView, RouteTerrainView, SUPPORTED_ROUTE_TYPES
+from .api import BlockHeightsView, ExportView, FaceHeightsView, KmlView, LidarSurfaceView, LidarTileView, PlanView, RouteCopyView, RouteDetailView, RouteElevationView, RouteImportView, RouteListCreateView, RoutePointElevationsView, RouteTerrainView, TaskSurfacesView, TaskSurfaceTileView, TaskSurfaceView, SUPPORTED_ROUTE_TYPES
 
 
 class Plugin(PluginBase):
@@ -34,6 +34,9 @@ class Plugin(PluginBase):
             MountPoint(r'routes/(?P<pk>[0-9]+)/terrain$', RouteTerrainView.as_view()),
             MountPoint('lidar/surface$', LidarSurfaceView.as_view()),
             MountPoint(r'lidar/tiles/(?P<z>[0-9]{1,2})/(?P<x>[0-9]{1,7})/(?P<y>[0-9]{1,7})\.png$', LidarTileView.as_view()),
+            MountPoint('task-surfaces$', TaskSurfacesView.as_view()),
+            MountPoint('task-surface$', TaskSurfaceView.as_view()),
+            MountPoint(r'task-surface/(?P<task>[0-9a-f-]{36})/tiles/(?P<z>[0-9]{1,2})/(?P<x>[0-9]{1,7})/(?P<y>[0-9]{1,7})\.png$', TaskSurfaceTileView.as_view()),
         ]
 
     def app_mount_points(self):

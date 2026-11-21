@@ -1,11 +1,14 @@
 // The layers button of the planner's map: a button under the zoom buttons that opens a small panel to choose the map
 // (the basemaps of the project), the view (flat or with the terrain raised) and, for 3D, whether the ground is the
-// lidar surface (trees and buildings, where USGS lidar exists) or the shape of the ground only. Plain DOM, no map library, so that it can
-// be tested; planner.js puts it on the map as a control.
+// lidar surface (trees and buildings, where USGS lidar exists) or the shape of the ground only, and, with `tasks`, one of
+// the user's WebODM tasks over the route with its DSM and orthophoto (task_layers.js fills it). Plain DOM, no map
+// library, so that it can be tested; planner.js puts it on the map as a control.
 (function (root) {
     // opts: {basemaps: [{label}], selected: label, view3d: bool, lidar: bool, relief: bool, onBasemap(label), onView3d(bool),
-    //        onLidar(bool), onRelief(bool)}
-    // Returns {element, setSelected(label), setView3d(on), setLidar(on), open(), close(), isOpen()}
+    //        onLidar(bool), onRelief(bool), tasks: bool, onTask(id | null), onTaskDsm(bool), onTaskOrthophoto(bool)}
+    // Returns {element, setSelected(label), setView3d(on), setLidar(on), open(), close(), isOpen(),
+    //          setTasks([{id, name, project_name}], selectedId), setTaskLayers({dsm, orthophoto, dsmEnabled,
+    //          orthophotoEnabled}), setTaskNote(text)}
     function createLayersPanel(doc, opts) {
         var element = doc.createElement("div");
         element.className = "mp-layers-control maplibregl-ctrl maplibregl-ctrl-group";
@@ -84,6 +87,61 @@
         reliefLabel.appendChild(doc.createTextNode(" Relief (3D)"));
         panel.appendChild(reliefLabel);
 
+        // One of the user's WebODM tasks over the route: a list to pick one (or none), and its two layers
+        var taskSelect = null, taskDsm = null, taskOrtho = null, taskNote = null;
+        function checkbox(className, text, title, onChange) {
+            var label = doc.createElement("label");
+            label.className = className;
+            label.title = title;
+            var input = doc.createElement("input");
+            input.type = "checkbox";
+            input.disabled = true;
+            input.addEventListener("change", function () { if (onChange) onChange(input.checked); });
+            label.appendChild(input);
+            label.appendChild(doc.createTextNode(" " + text));
+            panel.appendChild(label);
+            return input;
+        }
+        if (opts.tasks) {
+            heading("WebODM task");
+            taskSelect = doc.createElement("select");
+            taskSelect.className = "mp-layers-task form-control input-sm";
+            taskSelect.setAttribute("aria-label", "WebODM task shown on the map");
+            taskSelect.addEventListener("change", function () { if (opts.onTask) opts.onTask(taskSelect.value || null); });
+            panel.appendChild(taskSelect);
+            taskDsm = checkbox("mp-layers-task-dsm", "DSM (3D ground)",
+                               "In 3D, the ground inside the task is its DSM: as new as the flight, matched to the ground around it", opts.onTaskDsm);
+            taskOrtho = checkbox("mp-layers-task-ortho", "Orthophoto",
+                                 "The task's orthophoto over the basemap, in 2D and 3D", opts.onTaskOrthophoto);
+            taskNote = doc.createElement("div");
+            taskNote.className = "mp-layers-task-note help-block";
+            panel.appendChild(taskNote);
+        }
+        function setTasks(tasks, selected) {
+            if (!taskSelect) return;
+            taskSelect.innerHTML = "";
+            var none = doc.createElement("option");
+            none.value = "";
+            none.textContent = tasks.length ? "None" : "None over the route";
+            taskSelect.appendChild(none);
+            tasks.forEach(function (t) {
+                var o = doc.createElement("option");
+                o.value = t.id;
+                o.textContent = t.name + (t.project_name ? " (" + t.project_name + ")" : "");
+                taskSelect.appendChild(o);
+            });
+            taskSelect.value = selected || "";
+            taskSelect.disabled = !tasks.length;
+        }
+        function setTaskLayers(s) {
+            if (!taskSelect) return;
+            taskDsm.checked = !!(s.dsm && s.dsmEnabled);
+            taskDsm.disabled = !s.dsmEnabled;
+            taskOrtho.checked = !!(s.orthophoto && s.orthophotoEnabled);
+            taskOrtho.disabled = !s.orthophotoEnabled;
+        }
+        setTasks([], null);
+
         function setView3d(on) {
             flat.classList.toggle("active", !on);
             tilted.classList.toggle("active", !!on);
@@ -112,6 +170,9 @@
             setView3d: setView3d,
             setLidar: function (on) { lidar.checked = !!on; },
             setRelief: function (on) { relief.checked = !!on; },
+            setTasks: setTasks,
+            setTaskLayers: setTaskLayers,
+            setTaskNote: function (text) { if (taskNote) taskNote.textContent = text || ""; },
             open: function () { setOpen(true); },
             close: function () { setOpen(false); },
             isOpen: function () { return open; }

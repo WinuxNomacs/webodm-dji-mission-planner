@@ -330,3 +330,14 @@ describe("tiles decoded without a canvas", () => {
         }
     });
 });
+
+describe("a tile that comes with its pixels", () => {
+    it("is read as it is, not decoded again", async () => {
+        const t = P.tileAt(LNG, LAT, 18);
+        const rgba = tile(214, {px: t.px, py: t.py, height: 233.5});
+        const decode = jest.fn();
+        const reader = P.createHeightReader({load: () => Promise.resolve({data: {image: true}, rgba}), isBuilt: () => true, decode});
+        expect(await reader.heightAt(LNG, LAT)).toEqual({height: 233.5, source: "lidar"});
+        expect(decode).not.toHaveBeenCalled();
+    });
+});

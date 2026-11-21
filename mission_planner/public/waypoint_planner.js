@@ -285,6 +285,7 @@
         if (lines) lines.setData(data ? data.lines : EMPTY);
         state.air = data && data.air ? data.air : null;
         if (lidarOn) lidar.ensure(routeBounds());       // the lidar surface around the route, from 2D too
+        if (taskLayers) taskLayers.list(routeBounds());  // the user's tasks over it
         if (relief && reliefOn && state.view3d) relief.refresh(lidarBounds());     // the relief's colours round it
         if (route3d) route3d.setAir(state.air, takeoffLngLat());
         showDraped();
@@ -693,9 +694,10 @@
     var RELIEF_KEY = "mission-planner:relief";
     var reliefOn = false, relief = null;
     try { reliefOn = window.localStorage.getItem(RELIEF_KEY) === "on"; } catch (e) { /* off */ }
+    var TaskLayers = window.MissionPlannerTaskLayers, taskLayers = null, taskSurface = null;
     var lidarBar = window.MissionPlannerLidar.createStatusBar(document, map.getContainer());
     var lidar = window.MissionPlannerLidar.createLidarSurface({
-        maplibregl: maplibregl, fetch: fetch.bind(window), api: API, csrf: csrf, onStatus: lidarBar.show,
+        maplibregl: maplibregl, fetch: fetch.bind(window), api: API, csrf: csrf, onStatus: lidarBar.show, lidar: lidarOn,
         onTilesChanged: function (tiles) {
             var dem = map.getSource("mp-dem");
             if (dem && lidarOn && dem.setTiles) dem.setTiles(tiles);
@@ -730,7 +732,7 @@
         map.setTerrain(null);
         if (map.getLayer("mp-hillshade")) map.removeLayer("mp-hillshade");
         if (map.getSource("mp-dem")) map.removeSource("mp-dem");
-        map.addSource("mp-dem", lidarOn ? lidar.source() : Core.TERRAIN_SOURCE);
+        map.addSource("mp-dem", lidarOn || taskSurface ? lidar.source() : Core.TERRAIN_SOURCE);
         map.addLayer({id: "mp-hillshade", type: "hillshade", source: "mp-dem", paint: {"hillshade-exaggeration": 0.35}}, "mp-path");
         map.setTerrain({source: "mp-dem", exaggeration: 1});
         if (lidarOn) lidar.request(lidarBounds()); else lidar.stop();
@@ -741,7 +743,7 @@
     var unitsSystem = "metric";
     var heightReader = window.MissionPlannerPointerHeight.createHeightReader({
         load: function (z, x, y) { return lidar.load({url: "mplidar://" + z + "/" + x + "/" + y}); },
-        isBuilt: function (x, y) { return lidarOn && lidar.isBuilt(x, y); }
+        isBuilt: function (x, y) { return (lidarOn && lidar.isBuilt(x, y)) || lidar.hasTask(x, y); }
     });
     relief = window.MissionPlannerRelief.createRelief({map: map, heightsAt: heightReader.heightsAt});
     var pointerTip = window.MissionPlannerPointerHeight.createPointerTooltip(document, map.getContainer(), {
@@ -775,6 +777,7 @@
 
     function setLidar(on) {
         lidarOn = on;
+        lidar.setLidar(on);
         try { window.localStorage.setItem(LIDAR_KEY, on ? "on" : "off"); } catch (e) { /* not remembered */ }
         if (state.view3d) showGround3d();
         else if (on) lidar.ensure(routeBounds());
@@ -784,11 +787,16 @@
         measure.reread();
     }
 
+    // The layer the basemap (and a task's orthophoto) goes under
+    function underBasemap() {
+        return map.getLayer("mp-relief") ? "mp-relief" : map.getLayer("mp-hillshade") ? "mp-hillshade" : (map.getLayer("mp-path") ? "mp-path" : undefined);
+    }
+
     function applyBasemap(bm) {
         if (map.getLayer("mp-basemap")) map.removeLayer("mp-basemap");
         if (map.getSource("mp-basemap")) map.removeSource("mp-basemap");
         map.addSource("mp-basemap", Core.basemapSource(bm, window.location));
-        map.addLayer({id: "mp-basemap", type: "raster", source: "mp-basemap"}, map.getLayer("mp-relief") ? "mp-relief" : map.getLayer("mp-hillshade") ? "mp-hillshade" : (map.getLayer("mp-path") ? "mp-path" : undefined));
+        map.addLayer({id: "mp-basemap", type: "raster", source: "mp-basemap"}, map.getLayer(TaskLayers.ORTHO) ? TaskLayers.ORTHO : underBasemap());
         if (relief) relief.basemapChanged();
         state.basemap = bm.label;
         layersPanel.setSelected(bm.label);
@@ -823,12 +831,28 @@
             if (chosen) applyBasemap(chosen);
         },
         onView3d: function (on) { if (on !== state.view3d) setView3d(on); },
-        onLidar: setLidar, relief: reliefOn, onRelief: setRelief
+        onLidar: setLidar, relief: reliefOn, onRelief: setRelief,
+        tasks: true, onTask: function (id) { taskLayers.choose(id); }, onTaskDsm: function (on) { taskLayers.setDsm(on); },
+        onTaskOrthophoto: function (on) { taskLayers.setOrthophoto(on); }
     });
     function LayersControl() {}
     LayersControl.prototype.onAdd = function () { return layersPanel.element; };
     LayersControl.prototype.onRemove = function () { if (layersPanel.element.parentNode) layersPanel.element.parentNode.removeChild(layersPanel.element); };
     map.addControl(new LayersControl(), "top-right");
+
+    // One of the user's WebODM tasks over the route (task_layers.js), picked in Map layers: its DSM blended into the 3D
+    // ground (lidar_surface.js), its orthophoto over the basemap
+    taskLayers = TaskLayers.createTaskLayers({
+        map: map, panel: layersPanel, fetch: fetch.bind(window), api: API, csrf: csrf, routeKey: routeId,
+        storage: (function () { try { return window.localStorage; } catch (e) { return null; } })(),
+        before: underBasemap,
+        onSurface: function (s) {
+            var had = !!taskSurface;
+            taskSurface = s;
+            lidar.setTask(s);
+            if (state.view3d && !lidarOn && had !== !!s) showGround3d();     // the ground's source changes
+        }
+    });
 
     var searchPanel = window.MissionPlannerSearch.createSearchPanel(document, {
         preconnect: "https://photon.komoot.io",

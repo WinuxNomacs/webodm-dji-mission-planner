@@ -431,3 +431,115 @@ describe("lidar surface", () => {
         expect(fetch.calls).toEqual([]);
     });
 });
+
+// A 256 x 256 Terrarium tile of one height, its alpha `alpha`
+function terrarium(h, alpha = 255) {
+    const out = new Uint8ClampedArray(256 * 256 * 4), v = h + 32768;
+    for (let i = 0; i < out.length; i += 4) {
+        out[i] = Math.floor(v / 256); out[i + 1] = Math.floor(v) % 256; out[i + 2] = Math.floor((v - Math.floor(v)) * 256); out[i + 3] = alpha;
+    }
+    return out;
+}
+const heightOf = (rgba, i = 0) => rgba[i * 4] * 256 + rgba[i * 4 + 1] + rgba[i * 4 + 2] / 256 - 32768;
+
+describe("a task's surface over the rest", () => {
+    it("mixes the task's heights by its alpha, and keeps the surface where it is 0", () => {
+        const under = terrarium(200), task = terrarium(210, 0);
+        expect(heightOf(L.blend(under, task))).toBeCloseTo(200, 2);
+        expect(heightOf(L.blend(under, terrarium(210, 255)))).toBeCloseTo(210, 2);
+        expect(heightOf(L.blend(under, terrarium(210, 51)))).toBeCloseTo(202, 1);
+        expect(L.blend(under, task)[3]).toBe(255);
+    });
+
+    it("enlarges part of a tile pixel for pixel", () => {
+        const src = terrarium(0);
+        src[(10 * 256 + 20) * 4] = 99;                                    // the pixel at (20, 10)
+        const out = L.cropRgba(src, {left: 20, top: 10, size: 64});
+        expect(out[0]).toBe(99);
+        expect(out[(3 * 256 + 3) * 4]).toBe(99);                          // 4 x 4 pixels from one
+        expect(out[(4 * 256 + 4) * 4]).not.toBe(99);
+    });
+
+    it("knows a tile's bounds in degrees", () => {
+        const b = L.tileLonLat(1, 1, 0);
+        expect(b[0]).toBeCloseTo(0, 6);
+        expect(b[2]).toBeCloseTo(180, 6);
+        expect(b[3]).toBeCloseTo(85.0511, 3);
+    });
+
+    // AWS answers bytes [1], the lidar [2], the task [3]; decodeRgba turns them into tiles of 200 m, 220 m and 240 m
+    const X = 8 * 1000 + 3, Y = 8 * 2000 + 5, UNIT = {x: 1000, y: 2000};
+    const BOUNDS = L.tileLonLat(18, X, Y);
+    const tiles = {1: terrarium(200), 2: terrarium(220), 3: terrarium(240, 255)};
+    let images, fetch, surface, changes;
+    const setup = (handler, over = {}) => {
+        images = []; changes = [];
+        fetch = fakeFetch(handler);
+        surface = L.createLidarSurface(Object.assign({
+            fetch, api: API, csrf: "t", onTilesChanged: t => changes.push(t), onStatus: () => {},
+            decodeRgba: buf => Promise.resolve(tiles[new Uint8Array(buf)[0]]),
+            toImage: rgba => { images.push(rgba); return Promise.resolve({image: true}); },
+            decodeParent: () => Promise.resolve({image: "parent"}), crop: (image, c) => Promise.resolve({cropped: c})
+        }, over));
+    };
+    const answer = which => ({status: 200, bytes: new Uint8Array([which]).buffer});
+    const web = (taskStatus = 200) => url => url.indexOf("task-surface/") >= 0 ? (taskStatus === 200 ? answer(3) : {status: taskStatus})
+        : url.indexOf("lidar/tiles") >= 0 ? answer(2)
+        : url.indexOf("lidar/surface") >= 0 ? {status: 200, body: {units: [{x: UNIT.x, y: UNIT.y, state: "done", v: 7}]}}
+        : answer(1);
+
+    it("blends the chosen task's tile over AWS's terrain, cut from its zoom-15 parent, with the task's version", async () => {
+        setup(web());
+        surface.setTask({id: "abc", v: 42, bounds: BOUNDS});
+        expect(changes.length).toBe(1);                                    // the terrain reloads
+        const r = await surface.load({url: "mplidar://18/" + X + "/" + Y + "?v=1"});
+        const urls = fetch.calls.map(c => c.url);
+        expect(urls).toContain(API + "task-surface/abc/tiles/18/" + X + "/" + Y + ".png?v=42");
+        expect(urls).toContain(AWS + "15/" + (X >> 3) + "/" + (Y >> 3) + ".png");
+        expect(heightOf(r.rgba)).toBeCloseTo(240, 2);
+        expect(r.data).toEqual({image: true});
+        surface.setTask({id: "abc", v: 42, bounds: BOUNDS});
+        expect(changes.length).toBe(1);                                    // the same task: nothing to reload
+        surface.setTask(null);
+        expect(changes.length).toBe(2);
+    });
+
+    it("blends it over the lidar where its unit is built", async () => {
+        setup(web());
+        await surface.refresh([1, 2, 3, 4]);
+        surface.setTask({id: "abc", v: 1, bounds: BOUNDS});
+        tiles[3] = terrarium(240, 0);                                      // the task's edge: none of it here
+        const r = await surface.load({url: "mplidar://18/" + X + "/" + Y});
+        tiles[3] = terrarium(240, 255);
+        expect(fetch.calls.map(c => c.url)).toContain(API + "lidar/tiles/18/" + X + "/" + Y + ".png?v=7");
+        expect(heightOf(r.rgba)).toBeCloseTo(220, 2);
+    });
+
+    it("shows the surface alone where the task has no tile", async () => {
+        setup(web(404));
+        surface.setTask({id: "abc", v: 1, bounds: BOUNDS});
+        const r = await surface.load({url: "mplidar://18/" + X + "/" + Y});
+        expect(heightOf(r.rgba)).toBeCloseTo(200, 2);
+    });
+
+    it("loads the tiles away from the task as before", async () => {
+        setup(web());
+        surface.setTask({id: "abc", v: 1, bounds: BOUNDS});
+        await surface.load({url: "mplidar://18/" + (X + 40) + "/" + Y});
+        expect(fetch.calls.some(c => c.url.indexOf("task-surface/") >= 0)).toBe(false);
+        expect(surface.hasTask(UNIT.x, UNIT.y)).toBe(true);
+        expect(surface.hasTask(UNIT.x + 5, UNIT.y)).toBe(false);
+    });
+
+    it("leaves the lidar out while it is turned off, and reloads the terrain when that changes", async () => {
+        setup(web(), {lidar: false});
+        await surface.refresh([1, 2, 3, 4]);
+        expect(surface.isBuilt(UNIT.x, UNIT.y)).toBe(false);
+        await surface.load({url: "mplidar://15/" + UNIT.x + "/" + UNIT.y});
+        expect(fetch.calls.pop().url).toBe(AWS + "15/" + UNIT.x + "/" + UNIT.y + ".png");
+        const before = changes.length;
+        surface.setLidar(true);
+        expect(changes.length).toBe(before + 1);
+        expect(surface.isBuilt(UNIT.x, UNIT.y)).toBe(true);
+    });
+});

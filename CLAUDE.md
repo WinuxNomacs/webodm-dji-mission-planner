@@ -17,7 +17,9 @@ committed: nothing true only on one machine. Keep it short; edit in place.
   not in its persistent folder: a zip-installed plugin lives there, and deleting it (the upgrade) removes the folder. The EGM96 geoid grid (`missions/geoid.py`, the takeoff point's ellipsoidal height) is there too
   (`mission_planner_data/grids/`; the tests read the copy in `tests/fixtures/geoid`), with GEOID18 (the lidar terrain's
   NAVD88 heights; never downloaded by the tests), and the 3D view's lidar surface (`lidar.py`) (`mission_planner_data/lidar/`), built by WebODM's
-  worker (`run_function_async`): a change to `lidar.py` needs `docker restart mp-worker` to reach it.
+  worker (`run_function_async`): a change to `lidar.py` needs `docker restart mp-worker` to reach it. A WebODM task's DSM
+  in the editors (`task_surface.py`, Phase 23) is cut by the worker too, into `mission_planner_data/tasks/<task id>/`
+  (the same restart after a change).
   AGL routes' lidar terrain (`lidar_terrain.py`) is made from its units. WebODM runs worker jobs inline under test:
   `tests/__init__.py` points the lidar at a scratch folder and refuses builds and the GEOID18 download. `luxodm_import.py` reads LuxODM's
   route export (format `luxodm-routes`, version 1, written by LuxODM's `app/management/commands/export_routes.py`)
